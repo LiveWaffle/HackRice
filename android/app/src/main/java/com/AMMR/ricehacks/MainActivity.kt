@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Modifier
 import com.AMMR.ricehacks.data.AuthenticatedPatient
 import com.AMMR.ricehacks.data.DirectGeminiHealthAiRepository
@@ -22,9 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            RiceHacksTheme {
-                HealthBridgeApp()
-            }
+            HealthBridgeApp()
         }
     }
 }
@@ -32,6 +31,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HealthBridgeApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedPatient?>(null) }
+    val systemDarkTheme = isSystemInDarkTheme()
+    var darkTheme by remember { mutableStateOf(systemDarkTheme) }
     val authRepository = remember {
         SupabaseAuthRepository(
             supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -49,20 +50,24 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
         DirectGeminiHealthAiRepository(apiKey = BuildConfig.GEMINI_API_KEY)
     }
 
-    val currentSession = patientSession
-    if (currentSession != null) {
-        LoggedInHomeScreen(
-            patientSession = currentSession,
-            qrAccessRepository = qrAccessRepository,
-            patientDataRepository = patientDataRepository,
-            aiRepository = aiRepository,
-            modifier = modifier
-        )
-    } else {
-        LoginScreen(
-            authRepository = authRepository,
-            onSignedIn = { patientSession = it },
-            modifier = modifier
-        )
+    RiceHacksTheme(darkTheme = darkTheme) {
+        val currentSession = patientSession
+        if (currentSession != null) {
+            LoggedInHomeScreen(
+                patientSession = currentSession,
+                qrAccessRepository = qrAccessRepository,
+                patientDataRepository = patientDataRepository,
+                aiRepository = aiRepository,
+                darkTheme = darkTheme,
+                onDarkThemeChange = { darkTheme = it },
+                modifier = modifier
+            )
+        } else {
+            LoginScreen(
+                authRepository = authRepository,
+                onSignedIn = { patientSession = it },
+                modifier = modifier
+            )
+        }
     }
 }

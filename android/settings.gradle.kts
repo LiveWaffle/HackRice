@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Required transitively by LiveKit, which powers ElevenLabs voice sessions.
+        maven(url = "https://jitpack.io")
     }
 }
 

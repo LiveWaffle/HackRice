@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +69,9 @@ fun MyDataQrScreen(
     var healthDataError by remember { mutableStateOf<String?>(null) }
     var reloadHealthDataKey by remember { mutableStateOf(0) }
     var statusText by remember { mutableStateOf("Getting secure code...") }
+    var providerName by remember { mutableStateOf("") }
+    var providerSpecialty by remember { mutableStateOf("") }
+    var providerEntryMessage by remember { mutableStateOf<String?>(null) }
     val colorScheme = MaterialTheme.colorScheme
 
     LaunchedEffect(patientSession.accessToken, reloadHealthDataKey) {
@@ -138,6 +142,29 @@ fun MyDataQrScreen(
             lineHeight = 30.sp,
             modifier = Modifier.fillMaxWidth()
         )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Add a healthcare provider", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Keep your care team together so you can choose what to share.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 24.sp)
+                OutlinedTextField(value = providerName, onValueChange = { providerName = it }, label = { Text("Provider or clinic name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = providerSpecialty, onValueChange = { providerSpecialty = it }, label = { Text("Specialty, such as cardiology") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Button(
+                    onClick = {
+                        providerEntryMessage = if (providerName.isBlank()) "Enter a provider or clinic name first." else "Provider details are ready to save when provider write access is connected."
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Save provider", fontSize = 17.sp) }
+                providerEntryMessage?.let { Text(it, color = colorScheme.onSurfaceVariant, fontSize = 15.sp, lineHeight = 21.sp) }
+            }
+        }
 
         QrCodeCard(
             token = token,

@@ -20,8 +20,8 @@ enum class AppDestination(
 ) {
     Home("Home", Icons.Filled.Home),
     MyData("My Data", Icons.Filled.Folder),
-    Settings("Settings", Icons.Filled.Settings),
-    Ai("AI", Icons.Filled.AutoAwesome)
+    AskNora("Ask Nora", Icons.Filled.AutoAwesome),
+    Settings("Settings", Icons.Filled.Settings)
 }
 
 enum class SettingsPage(

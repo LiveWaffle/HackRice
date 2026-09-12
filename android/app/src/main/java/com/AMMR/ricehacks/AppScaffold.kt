@@ -30,6 +30,7 @@ import com.AMMR.ricehacks.data.AuthenticatedPatient
 import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
+import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
 
 @Composable
 fun LoggedInHomeScreen(
@@ -37,6 +38,8 @@ fun LoggedInHomeScreen(
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository,
     aiRepository: HealthAiRepository,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
@@ -123,7 +126,11 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent()
+                AppDestination.Home -> HomeTabContent(
+                    patientName = patientSession.email?.substringBefore('@') ?: "there",
+                    onViewHealthData = { selectedDestination = AppDestination.MyData },
+                    onStartScan = { /* Presage scan hardware/API will connect here. */ }
+                )
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
@@ -132,11 +139,17 @@ fun LoggedInHomeScreen(
                 AppDestination.Settings -> SettingsContent(
                     selectedPage = selectedSettingsPage,
                     onSelectPage = { selectedSettingsPage = it },
-                    onBack = { selectedSettingsPage = null }
+                    onBack = { selectedSettingsPage = null },
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = onDarkThemeChange
                 )
-                AppDestination.Ai -> MyAiScreen(
+                AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,
-                    aiRepository = aiRepository
+                    aiRepository = aiRepository,
+                    askNoraRepository = SupabaseAskNoraRepository(
+                        supabaseUrl = BuildConfig.SUPABASE_URL,
+                        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                    )
                 )
             }
         }

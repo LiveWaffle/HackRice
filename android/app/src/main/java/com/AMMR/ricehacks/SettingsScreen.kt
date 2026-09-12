@@ -41,14 +41,18 @@ import androidx.compose.ui.unit.sp
 fun SettingsContent(
     selectedPage: SettingsPage?,
     onSelectPage: (SettingsPage) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit
 ) {
     if (selectedPage == null) {
         SettingsListScreen(onSelectPage = onSelectPage)
     } else {
         SettingsDetailScreen(
             page = selectedPage,
-            onBack = onBack
+            onBack = onBack,
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange
         )
     }
 }
@@ -165,7 +169,9 @@ private fun SettingsRow(
 @Composable
 private fun SettingsDetailScreen(
     page: SettingsPage,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -217,13 +223,17 @@ private fun SettingsDetailScreen(
             colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
             shape = MaterialTheme.shapes.extraLarge
         ) {
-            SettingsDetailFields(page = page)
+            SettingsDetailFields(page = page, darkTheme = darkTheme, onDarkThemeChange = onDarkThemeChange)
         }
     }
 }
 
 @Composable
-private fun SettingsDetailFields(page: SettingsPage) {
+private fun SettingsDetailFields(
+    page: SettingsPage,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit
+) {
     Column(
         modifier = Modifier.padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -238,6 +248,7 @@ private fun SettingsDetailFields(page: SettingsPage) {
             }
             SettingsPage.Preferences -> {
                 AiSettingsPreferences()
+                ControlledSettingsToggleRow("Use dark mode", darkTheme, onDarkThemeChange)
                 SettingsToggleRow("High contrast mode", false)
                 SettingsToggleRow("Use simple visit summaries", true)
                 SettingsActionButton("Save preferences")
@@ -284,6 +295,14 @@ private fun SettingsDetailFields(page: SettingsPage) {
                 SettingsActionButton("Contact support")
             }
         }
+    }
+}
+
+@Composable
+private fun ControlledSettingsToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
