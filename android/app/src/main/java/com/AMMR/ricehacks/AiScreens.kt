@@ -58,6 +58,7 @@ fun MyAiScreen(
     val scope = rememberCoroutineScope()
     var selectedAgent by remember { mutableStateOf(AiAgent.Cara) }
     var question by remember { mutableStateOf("") }
+    var extraInstructions by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf<Pair<String, AiAgent>?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -168,6 +169,9 @@ fun MyAiScreen(
                     minLines = 2,
                     shape = MaterialTheme.shapes.large
                 )
+
+
+
                 Button(
                     onClick = {
                         val trimmedQuestion = question.trim()
@@ -184,7 +188,8 @@ fun MyAiScreen(
                                 aiRepository.askQuestion(
                                     patientSessionToken = patientSession.accessToken,
                                     message = trimmedQuestion,
-                                    agent = selectedAgent
+                                    agent = selectedAgent,
+                                    extraInstructions = extraInstructions.takeIf { it.isNotBlank() }
                                 )
                             }.onSuccess { response ->
                                 Log.d("CaraDebug", "AI answer received from ${selectedAgent.displayName}")
@@ -318,6 +323,7 @@ private fun AiAnswerCard(answer: String, agentName: String) {
     val colorScheme = MaterialTheme.colorScheme
 
     Card(
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = colorScheme.secondaryContainer),
         shape = MaterialTheme.shapes.extraLarge
     ) {

@@ -35,7 +35,8 @@ private object PreviewHealthAiRepository : HealthAiRepository {
     override suspend fun askQuestion(
         patientSessionToken: String,
         message: String,
-        agent: AiAgent
+        agent: AiAgent,
+        extraInstructions: String?
     ): HealthAiAnswer {
         return HealthAiAnswer("[$agent] Bring your medicine list and ask about any side effects.")
     }

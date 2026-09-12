@@ -24,7 +24,8 @@ interface HealthAiRepository {
     suspend fun askQuestion(
         patientSessionToken: String,
         message: String,
-        agent: AiAgent = AiAgent.Cara
+        agent: AiAgent = AiAgent.Cara,
+        extraInstructions: String? = null
     ): HealthAiAnswer
 }
 
@@ -34,7 +35,8 @@ class BackendHealthAiRepository(
     override suspend fun askQuestion(
         patientSessionToken: String,
         message: String,
-        agent: AiAgent
+        agent: AiAgent,
+        extraInstructions: String?
     ): HealthAiAnswer {
         val response = request(
             path = "/api/patient/ai/message",
@@ -42,6 +44,7 @@ class BackendHealthAiRepository(
             body = JSONObject()
                 .put("message", message)
                 .put("agent", agent.name)
+                .put("extra_instructions", extraInstructions)
         )
 
         return HealthAiAnswer(answer = response.getString("answer"))
@@ -95,12 +98,13 @@ class BackendHealthAiRepository(
 
 class DirectGeminiHealthAiRepository(
     private val apiKey: String,
-    private val model: String = "gemini-2.0-flash"
+    private val model: String = "gemini-3.8-flash"
 ) : HealthAiRepository {
     override suspend fun askQuestion(
         patientSessionToken: String,
         message: String,
-        agent: AiAgent
+        agent: AiAgent,
+        extraInstructions: String?
     ): HealthAiAnswer {
         Log.d("CaraDebug", "Gemini API request for agent: ${agent.displayName}")
         if (apiKey.isBlank()) {
@@ -109,19 +113,29 @@ class DirectGeminiHealthAiRepository(
         }
 
         val response = request(
-            body = buildGeminiRequest(message = message, agent = agent)
+            body = buildGeminiRequest(message = message, agent = agent, extraInstructions = extraInstructions)
         )
 
         Log.d("CaraDebug", "Gemini API response received for agent: ${agent.displayName}")
         return HealthAiAnswer(answer = readGeminiAnswer(response))
     }
 
-    private fun buildGeminiRequest(message: String, agent: AiAgent): JSONObject {
+    private fun buildGeminiRequest(
+        message: String,
+        agent: AiAgent,
+        extraInstructions: String?
+    ): JSONObject {
         Log.d("CaraDebug", "Building Gemini request for agent: ${agent.name}")
-        val systemPrompt = when (agent) {
+        val basePrompt = when (agent) {
             AiAgent.Cara -> "You are Cara's patient helper for an elderly patient. Use plain language, short paragraphs, and the provided record context. Do not diagnose or prescribe. Tell the patient to ask their doctor for medical decisions."
             AiAgent.DrStat -> "You are Dr. Stat, a medical data and statistics expert. Analyze the patient's record context and provide insights into their health trends and medical statistics (e.g. blood pressure averages, glucose levels). Be technical but clear. Always include a disclaimer that you are an AI and not a doctor."
             AiAgent.Routine -> "You are Routine, a daily health and medication schedule helper. Help the patient organize their day based on their medications and conditions. Focus on 'when' and 'how' to take medicines and manage daily activities. Keep it organized and encouraging."
+        }
+
+        val systemPrompt = if (extraInstructions.isNullOrBlank()) {
+            basePrompt
+        } else {
+            "$basePrompt\n\nAdditional Instructions:\n$extraInstructions"
         }
 
         val systemInstruction = JSONObject()
@@ -160,7 +174,7 @@ class DirectGeminiHealthAiRepository(
                 "generationConfig",
                 JSONObject()
                     .put("temperature", 0.2)
-                    .put("maxOutputTokens", 450)
+                    .put("maxOutputTokens", 2048)
             )
     }
 
