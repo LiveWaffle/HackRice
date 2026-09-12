@@ -1,6 +1,7 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
@@ -19,6 +20,7 @@ enum class AppDestination(
     val icon: ImageVector
 ) {
     Home("Home", Icons.Filled.Home),
+    Vitals("Vitals", Icons.Filled.MonitorHeart),
     MyData("My Data", Icons.Filled.Folder),
     Settings("Settings", Icons.Filled.Settings),
     Ai("AI", Icons.Filled.AutoAwesome)
