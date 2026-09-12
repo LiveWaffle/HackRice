@@ -12,15 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,7 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,37 +33,64 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.AMMR.ricehacks.data.ApprovalResult
 import com.AMMR.ricehacks.data.AuditLogEntry
+import com.AMMR.ricehacks.data.AllergyData
+import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.ConditionData
 import com.AMMR.ricehacks.data.DoctorScanRequest
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
+import com.AMMR.ricehacks.data.MedicationData
+import com.AMMR.ricehacks.data.ObservationData
+import com.AMMR.ricehacks.data.PatientDataRepository
+import com.AMMR.ricehacks.data.PatientHealthData
+import com.AMMR.ricehacks.data.PatientAccessLogData
+import com.AMMR.ricehacks.data.ProviderData
 import com.AMMR.ricehacks.data.QrAccessRepository
 import com.AMMR.ricehacks.data.SignedQrToken
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.max
 
 @Composable
-fun MyDataQrScreen(repository: QrAccessRepository) {
+fun MyDataQrScreen(
+    patientSession: AuthenticatedPatient,
+    qrAccessRepository: QrAccessRepository,
+    patientDataRepository: PatientDataRepository
+) {
     var token by remember { mutableStateOf<SignedQrToken?>(null) }
     var secondsRemaining by remember { mutableStateOf(FakeQrAccessRepository.TOKEN_TTL_SECONDS) }
     var approvalRequest by remember { mutableStateOf<DoctorScanRequest?>(null) }
     var auditLogs by remember { mutableStateOf<List<AuditLogEntry>>(emptyList()) }
+    var healthData by remember { mutableStateOf<PatientHealthData?>(null) }
+    var isHealthDataLoading by remember { mutableStateOf(true) }
+    var healthDataError by remember { mutableStateOf<String?>(null) }
+    var reloadHealthDataKey by remember { mutableStateOf(0) }
     var statusText by remember { mutableStateOf("Getting secure code...") }
     val colorScheme = MaterialTheme.colorScheme
 
-    LaunchedEffect(repository) {
+    LaunchedEffect(patientSession.accessToken, reloadHealthDataKey) {
+        isHealthDataLoading = true
+        healthDataError = null
+        runCatching {
+            patientDataRepository.getMyHealthRecord(patientSession.accessToken)
+        }.onSuccess { data ->
+            healthData = data
+            isHealthDataLoading = false
+        }.onFailure { throwable ->
+            healthDataError = throwable.message ?: "Could not load your health record."
+            isHealthDataLoading = false
+        }
+    }
+
+    LaunchedEffect(qrAccessRepository) {
         while (true) {
-            val nextToken = repository.requestSignedAccessToken()
+            val nextToken = qrAccessRepository.requestSignedAccessToken()
             token = nextToken
             approvalRequest = null
             statusText = "Secure code is live"
-            auditLogs = repository.getAuditLog()
+            auditLogs = qrAccessRepository.getAuditLog()
             delay(FakeQrAccessRepository.REFRESH_SECONDS * 1000L)
         }
     }
@@ -82,13 +104,13 @@ fun MyDataQrScreen(repository: QrAccessRepository) {
             )
 
             if (approvalRequest == null) {
-                approvalRequest = repository.getPendingApprovalRequest(currentToken.tokenId)
+                approvalRequest = qrAccessRepository.getPendingApprovalRequest(currentToken.tokenId)
                 if (approvalRequest != null) {
                     statusText = "Doctor is asking to view your record"
                 }
             }
 
-            auditLogs = repository.getAuditLog()
+            auditLogs = qrAccessRepository.getAuditLog()
             delay(1000)
         }
     }
@@ -125,11 +147,50 @@ fun MyDataQrScreen(repository: QrAccessRepository) {
 
         SecurityNoteCard()
 
-        MyDataSectionCard("Current prescriptions", currentPrescriptions, "No current prescriptions are listed.")
-        MyDataSectionCard("Past prescriptions", pastPrescriptions, "No past prescriptions are listed.")
-        MyDataSectionCard("Allergies", allergies, "No allergies are listed.")
-        MyDataSectionCard("Conditions", conditions, "No conditions are listed.")
-        MyDataSectionCard("Recent visits", recentVisits, "No recent visits are listed.")
+        when {
+            isHealthDataLoading -> LoadingHealthRecordCard()
+            healthDataError != null -> HealthRecordErrorCard(
+                message = healthDataError.orEmpty(),
+                onRetry = { reloadHealthDataKey += 1 }
+            )
+            healthData?.isLinkedToRecord == false -> UnlinkedHealthRecordCard()
+        }
+
+        healthData?.takeIf { it.isLinkedToRecord }?.let { data ->
+            HealthRecordOverviewCard(data)
+            MyDataSectionCard(
+                title = "Current prescriptions",
+                items = data.activeMedications.map { it.toHealthRecordItem() },
+                emptyText = "No current prescriptions are listed."
+            )
+            MyDataSectionCard(
+                title = "Past prescriptions",
+                items = data.pastMedications.map { it.toHealthRecordItem() },
+                emptyText = "No past prescriptions are listed."
+            )
+            MyDataSectionCard(
+                title = "Allergies",
+                items = data.allergies.map { it.toHealthRecordItem() },
+                emptyText = "No allergies are listed."
+            )
+            MyDataSectionCard(
+                title = "Conditions",
+                items = data.conditions.map { it.toHealthRecordItem() },
+                emptyText = "No conditions are listed."
+            )
+            MyDataSectionCard(
+                title = "Recent vitals",
+                items = data.recentObservations.map { it.toHealthRecordItem() },
+                emptyText = "No recent vitals are listed."
+            )
+            MyDataSectionCard(
+                title = "Doctors with access",
+                items = data.providers.map { it.toHealthRecordItem() },
+                emptyText = "No providers have access yet."
+            )
+            PatientAccessLogCard(accessLogs = data.accessLogs)
+        }
+
         AuditLogCard(auditLogs = auditLogs)
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -151,11 +212,148 @@ fun MyDataQrScreen(repository: QrAccessRepository) {
                 approvalRequest = null
             },
             submitDecision = { approved ->
-                val result = repository.submitApprovalDecision(request.requestId, approved)
-                auditLogs = repository.getAuditLog()
+                val result = qrAccessRepository.submitApprovalDecision(request.requestId, approved)
+                auditLogs = qrAccessRepository.getAuditLog()
                 result
             }
         )
+    }
+}
+
+@Composable
+private fun LoadingHealthRecordCard() {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            CircularProgressIndicator()
+            Text(
+                text = "Loading your health record...",
+                color = colorScheme.onSurfaceVariant,
+                fontSize = 18.sp,
+                lineHeight = 25.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthRecordErrorCard(
+    message: String,
+    onRetry: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.errorContainer),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Record did not load",
+                color = colorScheme.onErrorContainer,
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = message,
+                color = colorScheme.onErrorContainer,
+                fontSize = 17.sp,
+                lineHeight = 25.sp
+            )
+            Button(
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(
+                    text = "Try again",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnlinkedHealthRecordCard() {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "No health record is linked yet",
+                color = colorScheme.onSurface,
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Your account is signed in, but it is not connected to a medical record yet.",
+                color = colorScheme.onSurfaceVariant,
+                fontSize = 17.sp,
+                lineHeight = 25.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthRecordOverviewCard(data: PatientHealthData) {
+    val colorScheme = MaterialTheme.colorScheme
+    val record = data.healthRecord
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = data.profile?.displayName ?: "Health record",
+                color = colorScheme.onSurface,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+            SettingsValueRow("Date of birth", record?.dateOfBirth ?: "Not listed")
+            SettingsValueRow("Blood type", record?.bloodType ?: "Not listed")
+            SettingsValueRow("Preferred language", record?.preferredLanguage ?: "Not listed")
+            record?.notes?.let { notes ->
+                Text(
+                    text = notes,
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 17.sp,
+                    lineHeight = 25.sp
+                )
+            }
+        }
     }
 }
 
@@ -229,6 +427,50 @@ private fun QrCodeCard(
                 fontSize = 18.sp,
                 lineHeight = 26.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun PatientAccessLogCard(accessLogs: List<PatientAccessLogData>) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Shared record history",
+                color = colorScheme.onSurface,
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            if (accessLogs.isEmpty()) {
+                Text(
+                    text = "No approved doctor access is listed yet.",
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 17.sp,
+                    lineHeight = 25.sp
+                )
+            } else {
+                accessLogs.take(5).forEach { log ->
+                    val doctor = log.doctorName ?: "Provider"
+                    val hospital = log.hospitalName ?: "Hospital"
+                    Text(
+                        text = "$doctor at $hospital: ${log.result ?: "access recorded"}",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 17.sp,
+                        lineHeight = 25.sp
+                    )
+                }
+            }
         }
     }
 }
@@ -335,156 +577,6 @@ private fun HealthRecordRow(item: HealthRecordItem) {
         )
     }
 }
-
-@Composable
-private fun PatientApprovalDialog(
-    request: DoctorScanRequest,
-    onApprove: () -> Unit,
-    onDeny: (timedOut: Boolean) -> Unit,
-    submitDecision: suspend (approved: Boolean) -> ApprovalResult
-) {
-    var secondsRemaining by remember(request.requestId) {
-        mutableStateOf(FakeQrAccessRepository.APPROVAL_TIMEOUT_SECONDS)
-    }
-    val scope = rememberCoroutineScope()
-    val colorScheme = MaterialTheme.colorScheme
-
-    LaunchedEffect(request.requestId) {
-        while (secondsRemaining > 0) {
-            delay(1000)
-            secondsRemaining -= 1
-        }
-
-        submitDecision(false)
-        onDeny(true)
-    }
-
-    Dialog(
-        onDismissRequest = {},
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = colorScheme.background
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.size(54.dp),
-                    tint = colorScheme.primary
-                )
-                Text(
-                    text = "Approve doctor access?",
-                    color = colorScheme.onBackground,
-                    fontSize = 34.sp,
-                    lineHeight = 40.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
-                Text(
-                    text = "Only approve if this doctor is with you now.",
-                    color = colorScheme.onSurfaceVariant,
-                    fontSize = 20.sp,
-                    lineHeight = 30.sp,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 26.dp),
-                    colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        ApprovalDetail("Doctor", request.doctorName)
-                        ApprovalDetail("Hospital", request.hospitalName)
-                        ApprovalDetail("Device", request.deviceInfo)
-                    }
-                }
-
-                Text(
-                    text = "Denying automatically in $secondsRemaining seconds",
-                    color = colorScheme.error,
-                    fontSize = 18.sp,
-                    lineHeight = 26.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
-
-                Button(
-                    onClick = {
-                        scope.launch {
-                            submitDecision(true)
-                            onApprove()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp)
-                        .height(58.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text(
-                        text = "Approve",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                FilledTonalButton(
-                    onClick = {
-                        scope.launch {
-                            submitDecision(false)
-                            onDeny(false)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .height(56.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text(
-                        text = "Deny",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ApprovalDetail(label: String, value: String) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Column {
-        Text(
-            text = label,
-            color = colorScheme.onSurfaceVariant,
-            fontSize = 16.sp,
-            lineHeight = 22.sp
-        )
-        Text(
-            text = value,
-            color = colorScheme.onSurface,
-            fontSize = 20.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
 @Composable
 private fun AuditLogCard(auditLogs: List<AuditLogEntry>) {
     val colorScheme = MaterialTheme.colorScheme
@@ -543,4 +635,59 @@ private fun generateQrBitmap(content: String): android.graphics.Bitmap {
     }
 
     return bitmap
+}
+
+private fun MedicationData.toHealthRecordItem(): HealthRecordItem {
+    val doseLine = listOfNotNull(dose, frequency, route).joinToString(", ").ifBlank {
+        status ?: "Medication listed"
+    }
+    val noteLine = notes ?: listOfNotNull(
+        startDate?.let { "Started $it" },
+        endDate?.let { "Ended $it" }
+    ).joinToString(" ").ifBlank { "No extra notes." }
+
+    return HealthRecordItem(name, doseLine, noteLine)
+}
+
+private fun AllergyData.toHealthRecordItem(): HealthRecordItem {
+    return HealthRecordItem(
+        title = allergen,
+        detail = listOfNotNull(reaction, severity?.let { "$it severity" }).joinToString(", ")
+            .ifBlank { status ?: "Allergy listed" },
+        note = notes ?: firstObservedDate?.let { "First observed $it" } ?: "Tell every provider before new medicine."
+    )
+}
+
+private fun ConditionData.toHealthRecordItem(): HealthRecordItem {
+    return HealthRecordItem(
+        title = name,
+        detail = listOfNotNull(status, severity, diagnosisCode).joinToString(", ")
+            .ifBlank { "Condition listed" },
+        note = notes ?: diagnosedDate?.let { "Diagnosed $it" } ?: "No extra notes."
+    )
+}
+
+private fun ObservationData.toHealthRecordItem(): HealthRecordItem {
+    val value = valueText ?: listOfNotNull(
+        valueNumeric?.let { number ->
+            if (number % 1.0 == 0.0) number.toInt().toString() else number.toString()
+        },
+        unit
+    ).joinToString(" ")
+
+    return HealthRecordItem(
+        title = type.replace('_', ' ').replaceFirstChar { it.uppercase() },
+        detail = value.ifBlank { "Observation listed" },
+        note = notes ?: listOfNotNull(source, observedAt).joinToString(", ").ifBlank { "No extra notes." }
+    )
+}
+
+private fun ProviderData.toHealthRecordItem(): HealthRecordItem {
+    return HealthRecordItem(
+        title = displayName,
+        detail = listOfNotNull(specialty, organizationName).joinToString(", ")
+            .ifBlank { accessLevel ?: "Provider access" },
+        note = accessExpiresAt?.let { "Access expires $it" }
+            ?: listOfNotNull(phone, email).joinToString(" ").ifBlank { "No contact details listed." }
+    )
 }

@@ -10,6 +10,11 @@ android {
     }
 
     defaultConfig {
+        val geminiApiKey = providers.gradleProperty("GEMINI_API_KEY")
+            .orElse(providers.environmentVariable("GEMINI_API_KEY"))
+            .orElse("")
+            .get()
+
         applicationId = "com.AMMR.ricehacks"
         minSdk = 24
         targetSdk = 37
@@ -19,6 +24,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {

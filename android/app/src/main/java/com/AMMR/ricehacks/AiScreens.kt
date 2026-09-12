@@ -25,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -34,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,10 +43,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.HealthAiRepository
+import kotlinx.coroutines.launch
 
 @Composable
-fun MyAiScreen() {
+fun MyAiScreen(
+    patientSession: AuthenticatedPatient,
+    aiRepository: HealthAiRepository
+) {
     val colorScheme = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var question by remember { mutableStateOf("") }
+    var answer by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
     val starterQuestions = listOf(
         "What should I ask my doctor?",
         "Explain my medicines simply",
@@ -111,20 +124,55 @@ fun MyAiScreen() {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Voice support is being prepared. For now, choose a question to start the visit helper.",
+                    text = "Type or choose a question. HealthBridge will answer using your saved record.",
                     color = colorScheme.onPrimaryContainer,
                     fontSize = 18.sp,
                     lineHeight = 26.sp
                 )
+                OutlinedTextField(
+                    value = question,
+                    onValueChange = {
+                        question = it
+                        errorMessage = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Your question") },
+                    minLines = 2,
+                    shape = MaterialTheme.shapes.large
+                )
                 Button(
-                    onClick = {},
+                    onClick = {
+                        val trimmedQuestion = question.trim()
+                        if (trimmedQuestion.isBlank()) {
+                            errorMessage = "Please enter a question."
+                            return@Button
+                        }
+
+                        isLoading = true
+                        errorMessage = null
+                        scope.launch {
+                            runCatching {
+                                aiRepository.askQuestion(
+                                    patientSessionToken = patientSession.accessToken,
+                                    message = trimmedQuestion
+                                )
+                            }.onSuccess { response ->
+                                answer = response.answer
+                                isLoading = false
+                            }.onFailure { throwable ->
+                                errorMessage = throwable.message ?: "The AI helper is not ready yet."
+                                isLoading = false
+                            }
+                        }
+                    },
+                    enabled = !isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     shape = MaterialTheme.shapes.large
                 ) {
                     Text(
-                        text = "Start voice question",
+                        text = if (isLoading) "Asking..." else "Ask HealthBridge",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -132,8 +180,27 @@ fun MyAiScreen() {
             }
         }
 
-        starterQuestions.forEach { question ->
-            AiQuestionCard(question = question)
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = colorScheme.error,
+                fontSize = 17.sp,
+                lineHeight = 24.sp
+            )
+        }
+
+        answer?.let { response ->
+            AiAnswerCard(answer = response)
+        }
+
+        starterQuestions.forEach { starterQuestion ->
+            AiQuestionCard(
+                question = starterQuestion,
+                onClick = {
+                    question = starterQuestion
+                    errorMessage = null
+                }
+            )
         }
 
         Text(
@@ -215,10 +282,43 @@ fun AiSettingsPreferences() {
 }
 
 @Composable
-private fun AiQuestionCard(question: String) {
+private fun AiAnswerCard(answer: String) {
     val colorScheme = MaterialTheme.colorScheme
 
     Card(
+        colors = CardDefaults.cardColors(containerColor = colorScheme.secondaryContainer),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "HealthBridge says",
+                color = colorScheme.onSecondaryContainer,
+                fontSize = 21.sp,
+                lineHeight = 27.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = answer,
+                color = colorScheme.onSecondaryContainer,
+                fontSize = 18.sp,
+                lineHeight = 27.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiQuestionCard(
+    question: String,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
         shape = MaterialTheme.shapes.extraLarge
     ) {

@@ -26,11 +26,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.HealthAiRepository
+import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
 
 @Composable
 fun LoggedInHomeScreen(
+    patientSession: AuthenticatedPatient,
     qrAccessRepository: QrAccessRepository,
+    patientDataRepository: PatientDataRepository,
+    aiRepository: HealthAiRepository,
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
@@ -118,13 +124,20 @@ fun LoggedInHomeScreen(
         ) {
             when (selectedDestination) {
                 AppDestination.Home -> HomeTabContent()
-                AppDestination.MyData -> MyDataQrScreen(repository = qrAccessRepository)
+                AppDestination.MyData -> MyDataQrScreen(
+                    patientSession = patientSession,
+                    qrAccessRepository = qrAccessRepository,
+                    patientDataRepository = patientDataRepository
+                )
                 AppDestination.Settings -> SettingsContent(
                     selectedPage = selectedSettingsPage,
                     onSelectPage = { selectedSettingsPage = it },
                     onBack = { selectedSettingsPage = null }
                 )
-                AppDestination.Ai -> MyAiScreen()
+                AppDestination.Ai -> MyAiScreen(
+                    patientSession = patientSession,
+                    aiRepository = aiRepository
+                )
             }
         }
     }

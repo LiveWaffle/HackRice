@@ -1,6 +1,7 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -40,6 +41,12 @@ enum class SettingsPage(
         "Text size, language, and how the app should feel.",
         Icons.Filled.Tune,
         "Change preferences"
+    ),
+    Accessibility(
+        "Accessibility",
+        "Bigger controls, voice help, captions, and reduced motion.",
+        Icons.Filled.Accessibility,
+        "Save accessibility"
     ),
     Notifications(
         "Notifications",

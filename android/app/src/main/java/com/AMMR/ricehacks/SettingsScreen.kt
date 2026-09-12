@@ -242,6 +242,16 @@ private fun SettingsDetailFields(page: SettingsPage) {
                 SettingsToggleRow("Use simple visit summaries", true)
                 SettingsActionButton("Save preferences")
             }
+            SettingsPage.Accessibility -> {
+                SettingsValueRow("Button size", "Large")
+                SettingsValueRow("Reading speed", "Slow")
+                SettingsToggleRow("Always show captions", true)
+                SettingsToggleRow("Speak screen changes aloud", false)
+                SettingsToggleRow("Reduce motion", true)
+                SettingsToggleRow("Stronger touch feedback", true)
+                SettingsToggleRow("Confirm before leaving forms", true)
+                SettingsActionButton("Save accessibility")
+            }
             SettingsPage.Notifications -> {
                 SettingsToggleRow("Medicine reminders", true)
                 SettingsToggleRow("Appointment reminders", true)

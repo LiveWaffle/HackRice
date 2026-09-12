@@ -49,6 +49,20 @@ import kotlinx.coroutines.launch
 private const val DEMO_PATIENT_NAME = "Margaret Chen"
 private const val DEMO_PATIENT_EMAIL = "gilliamandrew22@gmail.com"
 private const val DEMO_PATIENT_PASSWORD = "HealthBridge1943!"
+private const val EMPTY_TEST_PATIENT_NAME = "No History Test"
+private const val EMPTY_TEST_PATIENT_EMAIL = "gilliamandrew22+empty@gmail.com"
+private const val EMPTY_TEST_PATIENT_PASSWORD = "HealthBridgeEmpty1!"
+
+private data class DemoPatientLogin(
+    val name: String,
+    val email: String,
+    val password: String
+)
+
+private val demoPatientLogins = listOf(
+    DemoPatientLogin(DEMO_PATIENT_NAME, DEMO_PATIENT_EMAIL, DEMO_PATIENT_PASSWORD),
+    DemoPatientLogin(EMPTY_TEST_PATIENT_NAME, EMPTY_TEST_PATIENT_EMAIL, EMPTY_TEST_PATIENT_PASSWORD)
+)
 
 @Composable
 fun LoginScreen(
@@ -125,6 +139,29 @@ fun LoginScreen(
                     ) {
                         Text(
                             text = "Use Margaret's login",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = {
+                            displayName = EMPTY_TEST_PATIENT_NAME
+                            email = EMPTY_TEST_PATIENT_EMAIL
+                            password = EMPTY_TEST_PATIENT_PASSWORD
+                            isCreatingAccount = false
+                            errorMessage = null
+                            infoMessage = "No-history test login is filled in. Tap Sign in."
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .height(56.dp),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(
+                            text = "Use no-history test login",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -403,18 +440,20 @@ private suspend fun signInOrCreatePatient(
         return auth
     }
 
-    val isMargaretDemoLogin = email.equals(DEMO_PATIENT_EMAIL, ignoreCase = true)
+    val demoLogin = demoPatientLogins.firstOrNull { login ->
+        email.equals(login.email, ignoreCase = true)
+    }
     val profileName = displayName.ifBlank {
-        if (isMargaretDemoLogin) DEMO_PATIENT_NAME else "HealthBridge patient"
+        demoLogin?.name ?: "HealthBridge patient"
     }
     val auth = runCatching {
         authRepository.signIn(email = email, password = password)
     }.getOrElse { signInError ->
-        if (isMargaretDemoLogin) {
+        if (demoLogin != null) {
             authRepository.signUp(
-                email = DEMO_PATIENT_EMAIL,
-                password = DEMO_PATIENT_PASSWORD,
-                displayName = DEMO_PATIENT_NAME
+                email = demoLogin.email,
+                password = demoLogin.password,
+                displayName = demoLogin.name
             )
         } else {
             throw signInError
