@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,17 +25,18 @@ class MainActivity : ComponentActivity() {
         Log.d("NoraDebug", "MainActivity onCreate")
         enableEdgeToEdge()
         setContent {
-            RiceHacksTheme {
-                NoraApp()
-            }
+            HealthBridgeApp()
         }
     }
 }
 
 @Composable
-fun NoraApp(modifier: Modifier = Modifier) {
+fun HealthBridgeApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedUser?>(null) }
-    Log.d("NoraDebug", "NoraApp recomposed, patientSession: ${patientSession?.email}")
+    val systemDarkTheme = isSystemInDarkTheme()
+    var darkTheme by remember { mutableStateOf(systemDarkTheme) }
+    Log.d("NoraDebug", "HealthBridgeApp recomposed, patientSession: ${patientSession?.email}")
+
     val authRepository = remember {
         SupabaseAuthRepository(
             supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -52,20 +54,29 @@ fun NoraApp(modifier: Modifier = Modifier) {
         BackendHealthAiRepository(backendBaseUrl = BuildConfig.BACKEND_BASE_URL)
     }
 
-    val currentSession = patientSession
-    if (currentSession != null) {
-        LoggedInHomeScreen(
-            patientSession = currentSession,
-            qrAccessRepository = qrAccessRepository,
-            patientDataRepository = patientDataRepository,
-            aiRepository = aiRepository,
-            modifier = modifier
-        )
-    } else {
-        LoginScreen(
-            authRepository = authRepository,
-            onSignedIn = { patientSession = it },
-            modifier = modifier
-        )
+    RiceHacksTheme(darkTheme = darkTheme) {
+        val currentSession = patientSession
+        if (currentSession != null) {
+            LoggedInHomeScreen(
+                patientSession = currentSession,
+                qrAccessRepository = qrAccessRepository,
+                patientDataRepository = patientDataRepository,
+                aiRepository = aiRepository,
+                darkTheme = darkTheme,
+                onDarkThemeChange = { darkTheme = it },
+                modifier = modifier
+            )
+        } else {
+            LoginScreen(
+                authRepository = authRepository,
+                onSignedIn = { patientSession = it },
+                modifier = modifier
+            )
+        }
     }
+}
+
+@Composable
+fun NoraApp(modifier: Modifier = Modifier) {
+    HealthBridgeApp(modifier)
 }

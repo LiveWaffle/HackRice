@@ -2,6 +2,8 @@ package com.AMMR.ricehacks
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,38 +13,56 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.UserRole
 
+private enum class TrendRange(val label: String) { Day("Day"), Week("Week"), Month("Month"), Year("Year") }
+
 @Composable
-fun HomeTabContent(role: UserRole = UserRole.Patient) {
-    val colorScheme = MaterialTheme.colorScheme
+fun HomeTabContent(
+    patientName: String,
+    role: UserRole = UserRole.Patient,
+    onViewHealthData: () -> Unit,
+    onStartScan: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    var range by remember { mutableStateOf(TrendRange.Week) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 28.dp),
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Text(
-            text = timeOfDayGreeting(),
-            color = colorScheme.onBackground,
-            fontSize = 34.sp,
+            text = "${timeOfDayGreeting()} $patientName",
+            color = colors.onBackground,
+            fontSize = 32.sp,
             lineHeight = 40.sp,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Here is your health record for today.",
-            color = colorScheme.onSurfaceVariant,
-            fontSize = 20.sp,
-            lineHeight = 30.sp
+            text = if (role == UserRole.Doctor) {
+                "Manage your patient visits and scans."
+            } else {
+                "Welcome back. We'll keep this simple and take one step at a time."
+            },
+            color = colors.onSurfaceVariant,
+            fontSize = 19.sp,
+            lineHeight = 28.sp
         )
 
         if (role == UserRole.Doctor) {
@@ -52,12 +72,15 @@ fun HomeTabContent(role: UserRole = UserRole.Patient) {
                 buttonText = "Open Scanner"
             )
         } else {
-            HomeActionCard(
-                title = "My health record",
-                message = "Medicines, allergies, conditions, and documents.",
-                buttonText = "Open record"
-            )
+            DashboardCard("Your latest health summary") {
+                Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
+                Text("2 providers, 3 current medicines, 1 recent vital", color = colors.onSurfaceVariant, fontSize = 16.sp)
+                OutlinedButton(onClick = onViewHealthData, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("View recent health summary", fontSize = 17.sp)
+                }
+            }
         }
+
         HomeActionCard(
             title = "Share with a doctor",
             message = "Choose what a provider can see before a visit.",
@@ -68,6 +91,47 @@ fun HomeTabContent(role: UserRole = UserRole.Patient) {
             message = "Keep appointment notes and questions in one place.",
             buttonText = "View care"
         )
+
+        DashboardCard("Health trends") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                TrendRange.entries.forEach { option ->
+                    FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
+                }
+            }
+            Text("Presage scan trend - ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Text(
+                "Your connected scans and visit data will appear here as they are added.",
+                color = colors.onSurfaceVariant,
+                fontSize = 17.sp,
+                lineHeight = 25.sp
+            )
+        }
+
+        DashboardCard("Start a Presage scan") {
+            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+            Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        DashboardCard("Upcoming care") {
+            Text("Next visit", fontSize = 16.sp, color = colors.onSurfaceVariant)
+            Text("Primary care follow-up", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text("Bring your questions and share your record only when you are ready.", fontSize = 17.sp, lineHeight = 25.sp)
+        }
+    }
+}
+
+@Composable
+private fun DashboardCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold)
+            content()
+        }
     }
 }
 

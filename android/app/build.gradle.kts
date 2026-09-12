@@ -6,7 +6,7 @@ plugins {
 }
 
 val localProperties = Properties()
-val localPropertiesFile = project.rootProject.file("local.properties")
+val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
@@ -26,6 +26,10 @@ android {
             ?: providers.gradleProperty("PRESAGE_API_KEY").getOrNull()
             ?: providers.environmentVariable("PRESAGE_API_KEY").getOrNull()
             ?: ""
+        val elevenLabsAgentId = localProperties.getProperty("ELEVENLABS_AGENT_ID")
+            ?: providers.gradleProperty("ELEVENLABS_AGENT_ID").getOrNull()
+            ?: providers.environmentVariable("ELEVENLABS_AGENT_ID").getOrNull()
+            ?: ""
 
         applicationId = "com.AMMR.ricehacks"
         minSdk = 28
@@ -38,6 +42,7 @@ android {
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
         buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
         buildConfigField("String", "PRESAGE_API_KEY", "\"$presageApiKey\"")
+        buildConfigField("String", "ELEVENLABS_AGENT_ID", "\"$elevenLabsAgentId\"")
     }
 
     buildTypes {
@@ -71,6 +76,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.zxing.core)
+    implementation(libs.elevenlabs.agents)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

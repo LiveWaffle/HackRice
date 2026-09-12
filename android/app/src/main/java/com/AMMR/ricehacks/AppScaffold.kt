@@ -1,13 +1,13 @@
 package com.AMMR.ricehacks
 
+import android.util.Log
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import com.AMMR.ricehacks.presage.PresageScanScreen
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -32,6 +32,8 @@ import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
+import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
+import com.AMMR.ricehacks.presage.PresageScanScreen
 
 @Composable
 fun LoggedInHomeScreen(
@@ -39,6 +41,8 @@ fun LoggedInHomeScreen(
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository,
     aiRepository: HealthAiRepository,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
@@ -55,7 +59,7 @@ fun LoggedInHomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 12.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
@@ -94,30 +98,30 @@ fun LoggedInHomeScreen(
                 AppDestination.entries
                     .filter { it.requiredRole == null || it.requiredRole == patientSession.role }
                     .forEach { destination ->
-                    NavigationBarItem(
-                        selected = selectedDestination == destination,
-                        onClick = {
-                            Log.d("NoraDebug", "Navigating to: ${destination.label}")
-                            selectedDestination = destination
-                            if (destination != AppDestination.Settings) {
-                                selectedSettingsPage = null
+                        NavigationBarItem(
+                            selected = selectedDestination == destination,
+                            onClick = {
+                                Log.d("NoraDebug", "Navigating to: ${destination.label}")
+                                selectedDestination = destination
+                                if (destination != AppDestination.Settings) {
+                                    selectedSettingsPage = null
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = destination.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = destination.label,
+                                    fontSize = 13.sp
+                                )
                             }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = destination.label,
-                                fontSize = 13.sp
-                            )
-                        }
-                    )
-                }
+                        )
+                    }
             }
         }
     ) { innerPadding ->
@@ -128,10 +132,13 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent(role = patientSession.role)
-                AppDestination.Vitals -> PresageScanScreen(
-                    onReadingReady = { }
+                AppDestination.Home -> HomeTabContent(
+                    patientName = patientSession.email?.substringBefore('@') ?: "there",
+                    role = patientSession.role,
+                    onViewHealthData = { selectedDestination = AppDestination.MyData },
+                    onStartScan = { selectedDestination = AppDestination.Vitals }
                 )
+                AppDestination.Vitals -> PresageScanScreen(onReadingReady = { })
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
@@ -143,11 +150,17 @@ fun LoggedInHomeScreen(
                 AppDestination.Settings -> SettingsContent(
                     selectedPage = selectedSettingsPage,
                     onSelectPage = { selectedSettingsPage = it },
-                    onBack = { selectedSettingsPage = null }
+                    onBack = { selectedSettingsPage = null },
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = onDarkThemeChange
                 )
-                AppDestination.Ai -> MyAiScreen(
+                AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,
-                    aiRepository = aiRepository
+                    aiRepository = aiRepository,
+                    askNoraRepository = SupabaseAskNoraRepository(
+                        supabaseUrl = BuildConfig.SUPABASE_URL,
+                        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                    )
                 )
             }
         }

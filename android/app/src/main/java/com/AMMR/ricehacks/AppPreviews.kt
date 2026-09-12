@@ -25,7 +25,9 @@ fun LoggedInHomeScreenPreview() {
             ),
             qrAccessRepository = FakeQrAccessRepository(),
             patientDataRepository = PreviewPatientDataRepository,
-            aiRepository = PreviewHealthAiRepository
+            aiRepository = PreviewHealthAiRepository,
+            darkTheme = false,
+            onDarkThemeChange = {}
         )
     }
 }
