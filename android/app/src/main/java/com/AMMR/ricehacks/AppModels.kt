@@ -1,6 +1,7 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
@@ -22,6 +23,7 @@ enum class AppDestination(
     val requiredRole: UserRole? = null
 ) {
     Home("Home", Icons.Filled.Home),
+    Vitals("Vitals", Icons.Filled.MonitorHeart, UserRole.Patient),
     MyData("My Data", Icons.Filled.Folder, UserRole.Patient),
     Scanner("Scanner", Icons.Filled.QrCodeScanner, UserRole.Doctor),
     Settings("Settings", Icons.Filled.Settings),

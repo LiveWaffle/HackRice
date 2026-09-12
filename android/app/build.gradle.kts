@@ -22,9 +22,13 @@ android {
             ?: providers.gradleProperty("BACKEND_BASE_URL").getOrNull()
             ?: providers.environmentVariable("BACKEND_BASE_URL").getOrNull()
             ?: "http://10.0.2.2:5000"
+        val presageApiKey = localProperties.getProperty("PRESAGE_API_KEY")
+            ?: providers.gradleProperty("PRESAGE_API_KEY").getOrNull()
+            ?: providers.environmentVariable("PRESAGE_API_KEY").getOrNull()
+            ?: ""
 
         applicationId = "com.AMMR.ricehacks"
-        minSdk = 24
+        minSdk = 28
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -33,6 +37,7 @@ android {
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
         buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
+        buildConfigField("String", "PRESAGE_API_KEY", "\"$presageApiKey\"")
     }
 
     buildTypes {
@@ -53,6 +58,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.camera:camera-view:1.6.0")
+    implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("com.presagetech:smartspectra:3.3.0")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

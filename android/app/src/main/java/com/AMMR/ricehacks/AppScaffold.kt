@@ -1,6 +1,7 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.foundation.layout.Column
+import com.AMMR.ricehacks.presage.PresageScanScreen
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -128,6 +129,9 @@ fun LoggedInHomeScreen(
         ) {
             when (selectedDestination) {
                 AppDestination.Home -> HomeTabContent(role = patientSession.role)
+                AppDestination.Vitals -> PresageScanScreen(
+                    onReadingReady = { }
+                )
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
