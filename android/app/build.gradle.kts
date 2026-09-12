@@ -5,11 +5,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val localProperties = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use(::load)
-    }
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
 }
 
 android {
@@ -19,11 +19,11 @@ android {
     }
 
     defaultConfig {
-        val geminiApiKey = providers.gradleProperty("GEMINI_API_KEY")
-            .orElse(providers.environmentVariable("GEMINI_API_KEY"))
-            .orElse("")
-            .get()
-        val elevenLabsAgentId = localProperties.getProperty("ELEVENLABS_AGENT_ID", "")
+val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY")
+    ?: providers.gradleProperty("GEMINI_API_KEY").getOrNull()
+    ?: providers.environmentVariable("GEMINI_API_KEY").getOrNull()
+    ?: ""
+val elevenLabsAgentId = localProperties.getProperty("ELEVENLABS_AGENT_ID", "")
 
         applicationId = "com.AMMR.ricehacks"
         minSdk = 24

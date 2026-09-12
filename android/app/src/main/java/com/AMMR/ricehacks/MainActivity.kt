@@ -1,6 +1,7 @@
 package com.AMMR.ricehacks
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,7 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Modifier
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.DirectGeminiHealthAiRepository
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
 import com.AMMR.ricehacks.data.SupabaseAuthRepository
@@ -21,9 +22,12 @@ import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("CaraDebug", "MainActivity onCreate")
         enableEdgeToEdge()
         setContent {
-            HealthBridgeApp()
+RiceHacksTheme {
+                HealthBridgeApp()
+            }
         }
     }
 }
@@ -33,6 +37,13 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedPatient?>(null) }
     val systemDarkTheme = isSystemInDarkTheme()
     var darkTheme by remember { mutableStateOf(systemDarkTheme) }
+    Log.d("CaraDebug", "HealthBridgeApp recomposed, patientSession: ${patientSession?.email}")
+}
+
+@Composable
+fun CaraApp(modifier: Modifier = Modifier) {
+    HealthBridgeApp(modifier)
+}
     val authRepository = remember {
         SupabaseAuthRepository(
             supabaseUrl = BuildConfig.SUPABASE_URL,

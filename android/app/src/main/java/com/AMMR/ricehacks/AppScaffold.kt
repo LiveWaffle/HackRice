@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -26,7 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
@@ -34,7 +35,7 @@ import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
 
 @Composable
 fun LoggedInHomeScreen(
-    patientSession: AuthenticatedPatient,
+    patientSession: AuthenticatedUser,
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository,
     aiRepository: HealthAiRepository,
@@ -61,7 +62,7 @@ fun LoggedInHomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "HealthBridge",
+                                text = "Cara",
                                 color = colorScheme.onBackground,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -92,10 +93,13 @@ fun LoggedInHomeScreen(
         },
         bottomBar = {
             NavigationBar(containerColor = colorScheme.surfaceContainer) {
-                AppDestination.entries.forEach { destination ->
+                AppDestination.entries
+                    .filter { it.requiredRole == null || it.requiredRole == patientSession.role }
+                    .forEach { destination ->
                     NavigationBarItem(
                         selected = selectedDestination == destination,
                         onClick = {
+                            Log.d("CaraDebug", "Navigating to: ${destination.label}")
                             selectedDestination = destination
                             if (destination != AppDestination.Settings) {
                                 selectedSettingsPage = null
@@ -126,14 +130,18 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent(
+AppDestination.Home -> HomeTabContent(
                     patientName = patientSession.email?.substringBefore('@') ?: "there",
+                    role = patientSession.role,
                     onViewHealthData = { selectedDestination = AppDestination.MyData },
                     onStartScan = { /* Presage scan hardware/API will connect here. */ }
                 )
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
+                    patientDataRepository = patientDataRepository
+                )
+                AppDestination.Scanner -> DoctorScannerScreen(
                     patientDataRepository = patientDataRepository
                 )
                 AppDestination.Settings -> SettingsContent(

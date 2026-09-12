@@ -2,6 +2,7 @@ package com.AMMR.ricehacks
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,8 +12,30 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.AMMR.ricehacks.data.*
+import com.AMMR.ricehacks.data.AiAgent
+import com.AMMR.ricehacks.data.AuthenticatedUser
+import com.AMMR.ricehacks.data.HealthAiRepository
+import io.elevenlabs.ConversationSession
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -32,11 +55,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.AMMR.ricehacks.data.*
+import com.AMMR.ricehacks.data.AiAgent
+import com.AMMR.ricehacks.data.AuthenticatedUser
+import com.AMMR.ricehacks.data.HealthAiRepository
 import io.elevenlabs.ConversationSession
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
+@Composable
 @Composable
 fun AskNoraScreen(
     patientSession: AuthenticatedPatient,
@@ -86,13 +113,40 @@ fun AskNoraScreen(
 }
 
 @Composable
-fun NoraSessionList(
-    sessions: List<AskNoraSession>,
-    isLoading: Boolean,
-    onStartNew: (AskNoraMode) -> Unit,
-    onSelectSession: (AskNoraSession) -> Unit
+fun MyAiScreen(
+    patientSession: AuthenticatedUser,
+    aiRepository: HealthAiRepository
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var selectedAgent by remember { mutableStateOf(AiAgent.Cara) }
+    var question by remember { mutableStateOf("") }
+    var extraInstructions by remember { mutableStateOf("") }
+    var answer by remember { mutableStateOf<Pair<String, AiAgent>?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    val starterQuestions = listOf(
+        "What should I ask my doctor?",
+        "Explain my medicines simply",
+        "What changed since my last visit?"
+    )
+    val frameworkSteps = listOf(
+        AiFrameworkStep(
+            title = "Read approved data",
+            detail = "Uses prescriptions, allergies, conditions, and recent visits after you sign in.",
+            icon = Icons.Filled.Medication
+        ),
+        AiFrameworkStep(
+            title = "Speak plainly",
+            detail = "Answers with short sentences and avoids medical jargon when possible.",
+            icon = Icons.Filled.RecordVoiceOver
+        ),
+        AiFrameworkStep(
+            title = "Protect private details",
+            detail = "Does not unlock doctor access or share records without your approval.",
+            icon = Icons.Filled.PrivacyTip
+        )
+    )
 
     Column(
         modifier = Modifier
@@ -114,14 +168,14 @@ fun NoraSessionList(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
                 onClick = { onStartNew(AskNoraMode.Text) },
                 modifier = Modifier.weight(1f).height(56.dp),
                 shape = MaterialTheme.shapes.large
             ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("New Chat")
             }
@@ -139,13 +193,16 @@ fun NoraSessionList(
 
         Spacer(Modifier.height(32.dp))
 
-        Text(
+Text(
             text = "Past Conversations",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 12.dp)
         )
+        answer?.let { (response, agent) ->
+            AiAnswerCard(answer = response, agentName = agent.displayName)
+        }
 
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -586,7 +643,7 @@ fun AiSettingsPreferences() {
 
     PreferenceControlCard(
         title = "Language options",
-        detail = "Choose the language HealthBridge uses for AI answers.",
+        detail = "Choose the language Cara uses for AI answers.",
         icon = Icons.Filled.Translate
     ) {
         ChipColumn(
@@ -618,6 +675,115 @@ fun AiSettingsPreferences() {
         checked = readAnswersAloud,
         onCheckedChange = { readAnswersAloud = it }
     )
+}
+
+@Composable
+private fun AiAnswerCard(answer: String, agentName: String) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.secondaryContainer),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "$agentName says",
+                color = colorScheme.onSecondaryContainer,
+                fontSize = 21.sp,
+                lineHeight = 27.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = answer,
+                color = colorScheme.onSecondaryContainer,
+                fontSize = 18.sp,
+                lineHeight = 27.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiQuestionCard(
+    question: String,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(30.dp),
+                tint = colorScheme.primary
+            )
+            Text(
+                text = question,
+                color = colorScheme.onSurface,
+                fontSize = 20.sp,
+                lineHeight = 27.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiFrameworkCard(step: AiFrameworkStep) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(46.dp),
+                color = colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.large
+            ) {
+                Icon(
+                    imageVector = step.icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(10.dp),
+                    tint = colorScheme.onSecondaryContainer
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = step.title,
+                    color = colorScheme.onSurface,
+                    fontSize = 21.sp,
+                    lineHeight = 27.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = step.detail,
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 17.sp,
+                    lineHeight = 25.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable

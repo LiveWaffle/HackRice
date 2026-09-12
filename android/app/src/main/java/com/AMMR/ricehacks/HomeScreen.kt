@@ -26,30 +26,60 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AMMR.ricehacks.data.UserRole
 
 private enum class TrendRange(val label: String) { Day("Day"), Week("Week"), Month("Month"), Year("Year") }
 
 @Composable
 fun HomeTabContent(
     patientName: String,
+    role: UserRole = UserRole.Patient,
     onViewHealthData: () -> Unit,
     onStartScan: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
-    var range by remember { mutableStateOf(TrendRange.Week) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text("${timeOfDayGreeting()} $patientName", color = colors.onBackground, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold)
-        Text("Welcome back. We’ll keep this simple and take one step at a time.", color = colors.onSurfaceVariant, fontSize = 19.sp, lineHeight = 28.sp)
+Text(
+            text = "${timeOfDayGreeting()} $patientName",
+            color = colors.onBackground,
+            fontSize = 32.sp,
+            lineHeight = 40.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Welcome back. We’ll keep this simple and take one step at a time.",
+            color = colors.onSurfaceVariant,
+            fontSize = 19.sp,
+            lineHeight = 28.sp
+        )
 
-        DashboardCard("Your latest health summary") {
-            Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
-            Text("2 providers • 3 current medicines • 1 recent vital", color = colors.onSurfaceVariant, fontSize = 16.sp)
-            OutlinedButton(onClick = onViewHealthData, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("View recent health summary", fontSize = 17.sp) }
+        if (role == UserRole.Doctor) {
+            HomeActionCard(
+                title = "Patient Scanner",
+                message = "Scan a patient QR code to securely view their medical history.",
+                buttonText = "Open Scanner"
+            )
+        } else {
+            DashboardCard("Your latest health summary") {
+                Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
+                Text("2 providers • 3 current medicines • 1 recent vital", color = colors.onSurfaceVariant, fontSize = 16.sp)
+                OutlinedButton(onClick = onViewHealthData, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("View recent health summary", fontSize = 17.sp) }
+            }
         }
+
+        HomeActionCard(
+            title = "Share with a doctor",
+            message = "Choose what a provider can see before a visit.",
+            buttonText = "Share safely"
+        )
+        HomeActionCard(
+            title = "Upcoming care",
+            message = "Keep appointment notes and questions in one place.",
+            buttonText = "View care"
+        )
 
         DashboardCard("Health trends") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

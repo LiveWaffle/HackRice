@@ -9,19 +9,24 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.AMMR.ricehacks.data.UserRole
 
 enum class AppDestination(
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val requiredRole: UserRole? = null
 ) {
     Home("Home", Icons.Filled.Home),
-    MyData("My Data", Icons.Filled.Folder),
-    AskNora("Ask Nora", Icons.Filled.AutoAwesome),
-    Settings("Settings", Icons.Filled.Settings)
+MyData("My Data", Icons.Filled.Folder, UserRole.Patient),
+    AskNora("Ask Nora", Icons.Filled.AutoAwesome, UserRole.Patient),
+    Scanner("Scanner", Icons.Filled.QrCodeScanner, UserRole.Doctor),
+    Settings("Settings", Icons.Filled.Settings),
+    Ai("AI", Icons.Filled.AutoAwesome, UserRole.Patient)
 }
 
 enum class SettingsPage(
