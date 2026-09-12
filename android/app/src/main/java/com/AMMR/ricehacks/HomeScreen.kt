@@ -37,8 +37,13 @@ fun HomeTabContent(
     onViewHealthData: () -> Unit,
     onStartScan: () -> Unit,
 ) {
+<<<<<<< Updated upstream
     val colors = MaterialTheme.colorScheme
     var range by remember { mutableStateOf(TrendRange.Week) }
+=======
+    var range by remember { mutableStateOf(TrendRange.Day) }
+    val colorScheme = MaterialTheme.colorScheme
+>>>>>>> Stashed changes
 
     Column(
         modifier = Modifier
@@ -49,18 +54,23 @@ fun HomeTabContent(
     ) {
         Text(
             text = "${timeOfDayGreeting()} $patientName",
-            color = colors.onBackground,
+            color = colorScheme.onBackground,
             fontSize = 32.sp,
             lineHeight = 40.sp,
             fontWeight = FontWeight.Bold
         )
         Text(
+<<<<<<< Updated upstream
             text = if (role == UserRole.Doctor) {
                 "Manage your patient visits and scans."
             } else {
                 "Welcome back. We'll keep this simple and take one step at a time."
             },
             color = colors.onSurfaceVariant,
+=======
+            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Welcome back. We’ll keep this simple and take one step at a time.",
+            color = colorScheme.onSurfaceVariant,
+>>>>>>> Stashed changes
             fontSize = 19.sp,
             lineHeight = 28.sp
         )
@@ -69,12 +79,17 @@ fun HomeTabContent(
             HomeActionCard(
                 title = "Patient Scanner",
                 message = "Scan a patient QR code to securely view their medical history.",
-                buttonText = "Open Scanner"
+                buttonText = "Open Scanner",
+                onClick = onStartScan
             )
         } else {
             DashboardCard("Your latest health summary") {
                 Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
+<<<<<<< Updated upstream
                 Text("2 providers, 3 current medicines, 1 recent vital", color = colors.onSurfaceVariant, fontSize = 16.sp)
+=======
+                Text("2 providers • 3 current medicines • 1 recent vital", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
+>>>>>>> Stashed changes
                 OutlinedButton(onClick = onViewHealthData, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                     Text("View recent health summary", fontSize = 17.sp)
                 }
@@ -98,6 +113,7 @@ fun HomeTabContent(
                     FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
                 }
             }
+<<<<<<< Updated upstream
             Text("Presage scan trend - ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
             Text(
                 "Your connected scans and visit data will appear here as they are added.",
@@ -109,15 +125,47 @@ fun HomeTabContent(
 
         DashboardCard("Start a Presage scan") {
             Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+=======
+            Text("Presage scan trend • ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
+        }
+
+        DashboardCard("Start a Presage scan") {
+            Text("Take a new scan to add today’s reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+>>>>>>> Stashed changes
             Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
         DashboardCard("Upcoming care") {
-            Text("Next visit", fontSize = 16.sp, color = colors.onSurfaceVariant)
+            Text("Next visit", fontSize = 16.sp, color = colorScheme.onSurfaceVariant)
             Text("Primary care follow-up", fontSize = 21.sp, fontWeight = FontWeight.Bold)
             Text("Bring your questions and share your record only when you are ready.", fontSize = 17.sp, lineHeight = 25.sp)
+        }
+    }
+}
+
+@Composable
+private fun HomeActionCard(
+    title: String,
+    message: String,
+    buttonText: String,
+    onClick: (() -> Unit)? = null
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold)
+            Text(message, fontSize = 17.sp, lineHeight = 25.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = onClick ?: {},
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text(buttonText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

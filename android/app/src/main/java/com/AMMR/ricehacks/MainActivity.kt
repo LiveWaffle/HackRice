@@ -35,7 +35,10 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedUser?>(null) }
     val systemDarkTheme = isSystemInDarkTheme()
     var darkTheme by remember { mutableStateOf(systemDarkTheme) }
+<<<<<<< Updated upstream
     Log.d("NoraDebug", "HealthBridgeApp recomposed, patientSession: ${patientSession?.email}")
+=======
+>>>>>>> Stashed changes
 
     val authRepository = remember {
         SupabaseAuthRepository(
@@ -77,6 +80,11 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
 }
 
 @Composable
+<<<<<<< Updated upstream
 fun NoraApp(modifier: Modifier = Modifier) {
     HealthBridgeApp(modifier)
+=======
+fun CaraApp(modifier: Modifier = Modifier) {
+    HealthBridgeApp(modifier = modifier)
+>>>>>>> Stashed changes
 }

@@ -16,6 +16,8 @@ data class AuthenticatedUser(
     val role: UserRole = UserRole.Patient
 )
 
+typealias AuthenticatedPatient = AuthenticatedUser
+
 enum class UserRole {
     Patient,
     Doctor
