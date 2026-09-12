@@ -1,3 +1,14 @@
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+val presageApiKey = localProperties.getProperty("PRESAGE_API_KEY", "")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -16,7 +27,7 @@ android {
             .get()
 
         applicationId = "com.AMMR.ricehacks"
-        minSdk = 24
+        minSdk = 28
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -25,6 +36,7 @@ android {
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "PRESAGE_API_KEY", "\"$presageApiKey\"")
     }
 
     buildTypes {
@@ -45,6 +57,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.camera:camera-view:1.6.0")
+    implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("com.presagetech:smartspectra:3.3.0")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
