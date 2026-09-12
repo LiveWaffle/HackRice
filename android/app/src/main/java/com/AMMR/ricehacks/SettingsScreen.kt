@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import android.util.Log
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,11 +45,17 @@ fun SettingsContent(
     onBack: () -> Unit
 ) {
     if (selectedPage == null) {
-        SettingsListScreen(onSelectPage = onSelectPage)
+        SettingsListScreen(onSelectPage = {
+            Log.d("CaraDebug", "Settings page selected: ${it.title}")
+            onSelectPage(it)
+        })
     } else {
         SettingsDetailScreen(
             page = selectedPage,
-            onBack = onBack
+            onBack = {
+                Log.d("CaraDebug", "Back from settings page: ${selectedPage.title}")
+                onBack()
+            }
         )
     }
 }
@@ -267,11 +274,11 @@ private fun SettingsDetailFields(page: SettingsPage) {
                 SettingsActionButton("Review access history")
             }
             SettingsPage.About -> {
-                SettingsValueRow("App", "HealthBridge")
+                SettingsValueRow("App", "Cara")
                 SettingsValueRow("Version", "1.0")
                 SettingsValueRow("Project", "HackRice 2026")
                 Text(
-                    text = "HealthBridge helps patients organize and share health information. It does not replace medical advice from a doctor.",
+                    text = "Cara helps patients organize and share health information. It does not replace medical advice from a doctor.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 17.sp,
                     lineHeight = 25.sp
@@ -279,7 +286,7 @@ private fun SettingsDetailFields(page: SettingsPage) {
             }
             SettingsPage.HelpSupport -> {
                 SettingsValueRow("Support hours", "8 AM to 8 PM")
-                SettingsValueRow("Email", "support@healthbridge.local")
+                SettingsValueRow("Email", "support@cara.local")
                 SettingsValueRow("Phone help", "(555) 010-1040")
                 SettingsActionButton("Contact support")
             }

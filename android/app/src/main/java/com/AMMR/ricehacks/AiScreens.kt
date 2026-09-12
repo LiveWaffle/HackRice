@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -43,19 +44,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AiAgent
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.HealthAiRepository
 import kotlinx.coroutines.launch
 
 @Composable
 fun MyAiScreen(
-    patientSession: AuthenticatedPatient,
+    patientSession: AuthenticatedUser,
     aiRepository: HealthAiRepository
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    var selectedAgent by remember { mutableStateOf(AiAgent.Cara) }
     var question by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf<String?>(null) }
+    var answer by remember { mutableStateOf<Pair<String, AiAgent>?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val starterQuestions = listOf(
@@ -102,6 +105,23 @@ fun MyAiScreen(
             lineHeight = 30.sp
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AiAgent.entries.forEach { agent ->
+                FilterChip(
+                    selected = selectedAgent == agent,
+                    onClick = { 
+                        Log.d("CaraDebug", "Agent switched to: ${agent.displayName}")
+                        selectedAgent = agent 
+                    },
+                    label = { Text(agent.displayName) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         Card(
             colors = CardDefaults.cardColors(containerColor = colorScheme.primaryContainer),
             shape = MaterialTheme.shapes.extraLarge
@@ -111,20 +131,28 @@ fun MyAiScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Mic,
+                    imageVector = when (selectedAgent) {
+                        AiAgent.Cara -> Icons.Filled.Mic
+                        AiAgent.DrStat -> Icons.Filled.AutoAwesome
+                        AiAgent.Routine -> Icons.Filled.Medication
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(42.dp),
                     tint = colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "Talk to HealthBridge",
+                    text = "Talk to ${selectedAgent.displayName}",
                     color = colorScheme.onPrimaryContainer,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Type or choose a question. HealthBridge will answer using your saved record.",
+                    text = when (selectedAgent) {
+                        AiAgent.Cara -> "Type or choose a question. Cara will answer using your saved record."
+                        AiAgent.DrStat -> "Get expert analysis of your medical stats and health trends."
+                        AiAgent.Routine -> "Plan your day and manage your medication routine."
+                    },
                     color = colorScheme.onPrimaryContainer,
                     fontSize = 18.sp,
                     lineHeight = 26.sp
@@ -136,7 +164,7 @@ fun MyAiScreen(
                         errorMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Your question") },
+                    label = { Text("Your question for ${selectedAgent.displayName}") },
                     minLines = 2,
                     shape = MaterialTheme.shapes.large
                 )
@@ -150,16 +178,20 @@ fun MyAiScreen(
 
                         isLoading = true
                         errorMessage = null
+                        Log.d("CaraDebug", "Asking ${selectedAgent.displayName}: $trimmedQuestion")
                         scope.launch {
                             runCatching {
                                 aiRepository.askQuestion(
                                     patientSessionToken = patientSession.accessToken,
-                                    message = trimmedQuestion
+                                    message = trimmedQuestion,
+                                    agent = selectedAgent
                                 )
                             }.onSuccess { response ->
-                                answer = response.answer
+                                Log.d("CaraDebug", "AI answer received from ${selectedAgent.displayName}")
+                                answer = response.answer to selectedAgent
                                 isLoading = false
                             }.onFailure { throwable ->
+                                Log.e("CaraDebug", "AI error from ${selectedAgent.displayName}: ${throwable.message}")
                                 errorMessage = throwable.message ?: "The AI helper is not ready yet."
                                 isLoading = false
                             }
@@ -172,7 +204,7 @@ fun MyAiScreen(
                     shape = MaterialTheme.shapes.large
                 ) {
                     Text(
-                        text = if (isLoading) "Asking..." else "Ask HealthBridge",
+                        text = if (isLoading) "Asking..." else "Ask ${selectedAgent.displayName}",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -189,8 +221,8 @@ fun MyAiScreen(
             )
         }
 
-        answer?.let { response ->
-            AiAnswerCard(answer = response)
+        answer?.let { (response, agent) ->
+            AiAnswerCard(answer = response, agentName = agent.displayName)
         }
 
         starterQuestions.forEach { starterQuestion ->
@@ -247,7 +279,7 @@ fun AiSettingsPreferences() {
 
     PreferenceControlCard(
         title = "Language options",
-        detail = "Choose the language HealthBridge uses for AI answers.",
+        detail = "Choose the language Cara uses for AI answers.",
         icon = Icons.Filled.Translate
     ) {
         ChipColumn(
@@ -282,7 +314,7 @@ fun AiSettingsPreferences() {
 }
 
 @Composable
-private fun AiAnswerCard(answer: String) {
+private fun AiAnswerCard(answer: String, agentName: String) {
     val colorScheme = MaterialTheme.colorScheme
 
     Card(
@@ -294,7 +326,7 @@ private fun AiAnswerCard(answer: String) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "HealthBridge says",
+                text = "$agentName says",
                 color = colorScheme.onSecondaryContainer,
                 fontSize = 21.sp,
                 lineHeight = 27.sp,

@@ -1,7 +1,9 @@
 package com.AMMR.ricehacks.data
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -12,8 +14,18 @@ data class HealthAiAnswer(
     val answer: String
 )
 
+enum class AiAgent(val displayName: String, val iconLabel: String) {
+    Cara("Cara", "Helper"),
+    DrStat("Dr. Stat", "Medical Stats"),
+    Routine("Routine", "Daily Plan")
+}
+
 interface HealthAiRepository {
-    suspend fun askQuestion(patientSessionToken: String, message: String): HealthAiAnswer
+    suspend fun askQuestion(
+        patientSessionToken: String,
+        message: String,
+        agent: AiAgent = AiAgent.Cara
+    ): HealthAiAnswer
 }
 
 class BackendHealthAiRepository(
@@ -21,12 +33,15 @@ class BackendHealthAiRepository(
 ) : HealthAiRepository {
     override suspend fun askQuestion(
         patientSessionToken: String,
-        message: String
+        message: String,
+        agent: AiAgent
     ): HealthAiAnswer {
         val response = request(
             path = "/api/patient/ai/message",
             patientSessionToken = patientSessionToken,
-            body = JSONObject().put("message", message)
+            body = JSONObject()
+                .put("message", message)
+                .put("agent", agent.name)
         )
 
         return HealthAiAnswer(answer = response.getString("answer"))
@@ -84,30 +99,36 @@ class DirectGeminiHealthAiRepository(
 ) : HealthAiRepository {
     override suspend fun askQuestion(
         patientSessionToken: String,
-        message: String
+        message: String,
+        agent: AiAgent
     ): HealthAiAnswer {
+        Log.d("CaraDebug", "Gemini API request for agent: ${agent.displayName}")
         if (apiKey.isBlank()) {
+            Log.e("CaraDebug", "Gemini API key is blank. Request failed.")
             throw IllegalStateException("Add GEMINI_API_KEY to local.properties, then rebuild the app.")
         }
 
         val response = request(
-            body = buildGeminiRequest(message = message)
+            body = buildGeminiRequest(message = message, agent = agent)
         )
 
+        Log.d("CaraDebug", "Gemini API response received for agent: ${agent.displayName}")
         return HealthAiAnswer(answer = readGeminiAnswer(response))
     }
 
-    private fun buildGeminiRequest(message: String): JSONObject {
+    private fun buildGeminiRequest(message: String, agent: AiAgent): JSONObject {
+        Log.d("CaraDebug", "Building Gemini request for agent: ${agent.name}")
+        val systemPrompt = when (agent) {
+            AiAgent.Cara -> "You are Cara's patient helper for an elderly patient. Use plain language, short paragraphs, and the provided record context. Do not diagnose or prescribe. Tell the patient to ask their doctor for medical decisions."
+            AiAgent.DrStat -> "You are Dr. Stat, a medical data and statistics expert. Analyze the patient's record context and provide insights into their health trends and medical statistics (e.g. blood pressure averages, glucose levels). Be technical but clear. Always include a disclaimer that you are an AI and not a doctor."
+            AiAgent.Routine -> "You are Routine, a daily health and medication schedule helper. Help the patient organize their day based on their medications and conditions. Focus on 'when' and 'how' to take medicines and manage daily activities. Keep it organized and encouraging."
+        }
+
         val systemInstruction = JSONObject()
             .put(
                 "parts",
-                org.json.JSONArray().put(
-                    JSONObject().put(
-                        "text",
-                        "You are HealthBridge's patient helper for an elderly patient. " +
-                            "Use plain language, short paragraphs, and the provided record context. " +
-                            "Do not diagnose or prescribe. Tell the patient to ask their doctor for medical decisions."
-                    )
+                JSONArray().put(
+                    JSONObject().put("text", systemPrompt)
                 )
             )
 
@@ -169,10 +190,15 @@ class DirectGeminiHealthAiRepository(
             val response = BufferedReader(InputStreamReader(stream)).use { it.readText() }
 
             if (connection.responseCode !in 200..299) {
-                throw IllegalStateException(readGeminiError(response))
+                val error = readGeminiError(response)
+                Log.e("CaraDebug", "Gemini API error: $error")
+                throw IllegalStateException(error)
             }
 
             JSONObject(response)
+        } catch (e: Exception) {
+            Log.e("CaraDebug", "Gemini network/request exception: ${e.message}")
+            throw e
         } finally {
             connection.disconnect()
         }

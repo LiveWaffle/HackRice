@@ -18,9 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AMMR.ricehacks.data.UserRole
 
 @Composable
-fun HomeTabContent() {
+fun HomeTabContent(role: UserRole = UserRole.Patient) {
     val colorScheme = MaterialTheme.colorScheme
 
     Column(
@@ -38,17 +39,25 @@ fun HomeTabContent() {
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Here is your health record for today.",
+            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Here is your health record for today.",
             color = colorScheme.onSurfaceVariant,
             fontSize = 20.sp,
             lineHeight = 30.sp
         )
 
-        HomeActionCard(
-            title = "My health record",
-            message = "Medicines, allergies, conditions, and documents.",
-            buttonText = "Open record"
-        )
+        if (role == UserRole.Doctor) {
+            HomeActionCard(
+                title = "Patient Scanner",
+                message = "Scan a patient QR code to securely view their medical history.",
+                buttonText = "Open Scanner"
+            )
+        } else {
+            HomeActionCard(
+                title = "My health record",
+                message = "Medicines, allergies, conditions, and documents.",
+                buttonText = "Open record"
+            )
+        }
         HomeActionCard(
             title = "Share with a doctor",
             message = "Choose what a provider can see before a visit.",

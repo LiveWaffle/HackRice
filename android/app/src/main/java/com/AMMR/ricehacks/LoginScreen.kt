@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import android.util.Log
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,7 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.AuthRepository
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
 import kotlinx.coroutines.launch
 
@@ -61,13 +62,14 @@ private data class DemoPatientLogin(
 
 private val demoPatientLogins = listOf(
     DemoPatientLogin(DEMO_PATIENT_NAME, DEMO_PATIENT_EMAIL, DEMO_PATIENT_PASSWORD),
-    DemoPatientLogin(EMPTY_TEST_PATIENT_NAME, EMPTY_TEST_PATIENT_EMAIL, EMPTY_TEST_PATIENT_PASSWORD)
+    DemoPatientLogin(EMPTY_TEST_PATIENT_NAME, EMPTY_TEST_PATIENT_EMAIL, EMPTY_TEST_PATIENT_PASSWORD),
+    DemoPatientLogin("Dr. Alvarez (Demo)", "doctor.alvarez@example.com", "HealthBridge1943!")
 )
 
 @Composable
 fun LoginScreen(
     authRepository: AuthRepository,
-    onSignedIn: (AuthenticatedPatient) -> Unit,
+    onSignedIn: (AuthenticatedUser) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
@@ -167,6 +169,29 @@ fun LoginScreen(
                         )
                     }
 
+                    FilledTonalButton(
+                        onClick = {
+                            displayName = "Dr. Alvarez"
+                            email = "doctor.alvarez@example.com"
+                            password = "HealthBridge1943!"
+                            isCreatingAccount = false
+                            errorMessage = null
+                            infoMessage = "Doctor login is filled in. Tap Sign in."
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .height(56.dp),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(
+                            text = "Use Doctor login",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(18.dp))
 
                     if (isCreatingAccount) {
@@ -246,6 +271,7 @@ fun LoginScreen(
                         onPrimaryClick = {
                             val trimmedEmail = email.trim()
                             val trimmedName = displayName.trim()
+                            Log.d("CaraDebug", "Login/Signup click. Email: $trimmedEmail, Signup: $isCreatingAccount")
 
                             when {
                                 trimmedEmail.isBlank() -> errorMessage = "Please enter your email."
@@ -265,9 +291,11 @@ fun LoginScreen(
                                                 isCreatingAccount = isCreatingAccount
                                             )
                                         }.onSuccess { auth ->
+                                            Log.d("CaraDebug", "Auth successful for user: ${auth.email}")
                                             isLoading = false
                                             onSignedIn(auth)
                                         }.onFailure { throwable ->
+                                            Log.e("CaraDebug", "Auth failed: ${throwable.message}")
                                             isLoading = false
                                             errorMessage = throwable.message
                                                 ?: "We could not sign you in. Please try again."
@@ -310,7 +338,7 @@ private fun AppHeader() {
         Spacer(modifier = Modifier.width(14.dp))
         Column {
             Text(
-                text = "HealthBridge",
+                text = "Cara",
                 color = colorScheme.onBackground,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
@@ -341,8 +369,7 @@ private fun LoginActions(
     ) {
         Text(
             text = when {
-                isLoading && isCreatingAccount -> "Creating account..."
-                isLoading -> "Signing in..."
+                isLoading -> "Please wait..."
                 isCreatingAccount -> "Create account"
                 else -> "Sign in"
             },
@@ -426,13 +453,23 @@ private suspend fun signInOrCreatePatient(
     password: String,
     displayName: String,
     isCreatingAccount: Boolean
-): AuthenticatedPatient {
+): AuthenticatedUser {
     if (isCreatingAccount) {
-        val auth = authRepository.signUp(
-            email = email,
-            password = password,
-            displayName = displayName
-        )
+        val auth = runCatching {
+            authRepository.signUp(
+                email = email,
+                password = password,
+                displayName = displayName
+            )
+        }.getOrElse { signUpError ->
+            // If the user already exists, try to just sign them in instead of failing
+            if (signUpError.message?.contains("already registered", ignoreCase = true) == true ||
+                signUpError.message?.contains("Confirm your email", ignoreCase = true) == true) {
+                authRepository.signIn(email = email, password = password)
+            } else {
+                throw signUpError
+            }
+        }
         authRepository.ensurePatientProfile(
             accessToken = auth.accessToken,
             displayName = displayName
@@ -444,17 +481,24 @@ private suspend fun signInOrCreatePatient(
         email.equals(login.email, ignoreCase = true)
     }
     val profileName = displayName.ifBlank {
-        demoLogin?.name ?: "HealthBridge patient"
+        demoLogin?.name ?: "Cara patient"
     }
+
     val auth = runCatching {
         authRepository.signIn(email = email, password = password)
     }.getOrElse { signInError ->
-        if (demoLogin != null) {
-            authRepository.signUp(
-                email = demoLogin.email,
-                password = demoLogin.password,
-                displayName = demoLogin.name
-            )
+        // Fallback to signUp ONLY if we are fairly sure it's a new demo user
+        // and avoid the confusing "Account created" message if possible.
+        if (demoLogin != null && (signInError.message?.contains("invalid login", ignoreCase = true) == true || 
+            signInError.message?.contains("invalid credentials", ignoreCase = true) == true ||
+            signInError.message?.contains("not found", ignoreCase = true) == true)) {
+            runCatching {
+                authRepository.signUp(
+                    email = demoLogin.email,
+                    password = demoLogin.password,
+                    displayName = demoLogin.name
+                )
+            }.getOrElse { throw signInError }
         } else {
             throw signInError
         }
@@ -469,16 +513,24 @@ private suspend fun signInOrCreatePatient(
 }
 
 private object PreviewAuthRepository : AuthRepository {
-    override suspend fun signIn(email: String, password: String): AuthenticatedPatient {
-        return AuthenticatedPatient(accessToken = "preview-token", email = email)
+    override suspend fun signIn(email: String, password: String): AuthenticatedUser {
+        return AuthenticatedUser(
+            accessToken = "preview-token",
+            userId = "preview-user-id",
+            email = email
+        )
     }
 
     override suspend fun signUp(
         email: String,
         password: String,
         displayName: String
-    ): AuthenticatedPatient {
-        return AuthenticatedPatient(accessToken = "preview-token", email = email)
+    ): AuthenticatedUser {
+        return AuthenticatedUser(
+            accessToken = "preview-token",
+            userId = "preview-user-id",
+            email = email
+        )
     }
 
     override suspend fun ensurePatientProfile(accessToken: String, displayName: String) = Unit
