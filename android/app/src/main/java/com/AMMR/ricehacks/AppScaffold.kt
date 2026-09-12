@@ -59,7 +59,7 @@ fun LoggedInHomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Cara",
+                                text = "Nora",
                                 color = colorScheme.onBackground,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -96,7 +96,7 @@ fun LoggedInHomeScreen(
                     NavigationBarItem(
                         selected = selectedDestination == destination,
                         onClick = {
-                            Log.d("CaraDebug", "Navigating to: ${destination.label}")
+                            Log.d("NoraDebug", "Navigating to: ${destination.label}")
                             selectedDestination = destination
                             if (destination != AppDestination.Settings) {
                                 selectedSettingsPage = null

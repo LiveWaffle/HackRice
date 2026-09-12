@@ -44,8 +44,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.AMMR.ricehacks.data.AiAgent
 import com.AMMR.ricehacks.data.AuthenticatedUser
+import com.AMMR.ricehacks.data.HealthAiAnswer
 import com.AMMR.ricehacks.data.HealthAiRepository
 import kotlinx.coroutines.launch
 
@@ -56,10 +56,8 @@ fun MyAiScreen(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
-    var selectedAgent by remember { mutableStateOf(AiAgent.Cara) }
     var question by remember { mutableStateOf("") }
-    var extraInstructions by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf<Pair<String, AiAgent>?>(null) }
+    var answer by remember { mutableStateOf<HealthAiAnswer?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val starterQuestions = listOf(
@@ -74,13 +72,13 @@ fun MyAiScreen(
             icon = Icons.Filled.Medication
         ),
         AiFrameworkStep(
-            title = "Speak plainly",
-            detail = "Answers with short sentences and avoids medical jargon when possible.",
+            title = "Stay medical",
+            detail = "Answers health, symptom, treatment, medication, and record questions only.",
             icon = Icons.Filled.RecordVoiceOver
         ),
         AiFrameworkStep(
-            title = "Protect private details",
-            detail = "Does not unlock doctor access or share records without your approval.",
+            title = "Escalate urgent needs",
+            detail = "Flags urgent symptoms and questions that require a licensed professional.",
             icon = Icons.Filled.PrivacyTip
         )
     )
@@ -106,23 +104,6 @@ fun MyAiScreen(
             lineHeight = 30.sp
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AiAgent.entries.forEach { agent ->
-                FilterChip(
-                    selected = selectedAgent == agent,
-                    onClick = { 
-                        Log.d("CaraDebug", "Agent switched to: ${agent.displayName}")
-                        selectedAgent = agent 
-                    },
-                    label = { Text(agent.displayName) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
         Card(
             colors = CardDefaults.cardColors(containerColor = colorScheme.primaryContainer),
             shape = MaterialTheme.shapes.extraLarge
@@ -132,28 +113,20 @@ fun MyAiScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Icon(
-                    imageVector = when (selectedAgent) {
-                        AiAgent.Cara -> Icons.Filled.Mic
-                        AiAgent.DrStat -> Icons.Filled.AutoAwesome
-                        AiAgent.Routine -> Icons.Filled.Medication
-                    },
+                    imageVector = Icons.Filled.Mic,
                     contentDescription = null,
                     modifier = Modifier.size(42.dp),
                     tint = colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "Talk to ${selectedAgent.displayName}",
+                    text = "Talk to Nora",
                     color = colorScheme.onPrimaryContainer,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = when (selectedAgent) {
-                        AiAgent.Cara -> "Type or choose a question. Cara will answer using your saved record."
-                        AiAgent.DrStat -> "Get expert analysis of your medical stats and health trends."
-                        AiAgent.Routine -> "Plan your day and manage your medication routine."
-                    },
+                    text = "Type or choose a medical question. Nora will answer using your saved record first.",
                     color = colorScheme.onPrimaryContainer,
                     fontSize = 18.sp,
                     lineHeight = 26.sp
@@ -165,7 +138,7 @@ fun MyAiScreen(
                         errorMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Your question for ${selectedAgent.displayName}") },
+                    label = { Text("Your question for Nora") },
                     minLines = 2,
                     shape = MaterialTheme.shapes.large
                 )
@@ -182,21 +155,19 @@ fun MyAiScreen(
 
                         isLoading = true
                         errorMessage = null
-                        Log.d("CaraDebug", "Asking ${selectedAgent.displayName}: $trimmedQuestion")
+                        Log.d("NoraDebug", "Asking Nora: $trimmedQuestion")
                         scope.launch {
                             runCatching {
                                 aiRepository.askQuestion(
                                     patientSessionToken = patientSession.accessToken,
-                                    message = trimmedQuestion,
-                                    agent = selectedAgent,
-                                    extraInstructions = extraInstructions.takeIf { it.isNotBlank() }
+                                    message = trimmedQuestion
                                 )
                             }.onSuccess { response ->
-                                Log.d("CaraDebug", "AI answer received from ${selectedAgent.displayName}")
-                                answer = response.answer to selectedAgent
+                                Log.d("NoraDebug", "AI answer received from Nora")
+                                answer = response
                                 isLoading = false
                             }.onFailure { throwable ->
-                                Log.e("CaraDebug", "AI error from ${selectedAgent.displayName}: ${throwable.message}")
+                                Log.e("NoraDebug", "AI error from Nora: ${throwable.message}")
                                 errorMessage = throwable.message ?: "The AI helper is not ready yet."
                                 isLoading = false
                             }
@@ -209,7 +180,7 @@ fun MyAiScreen(
                     shape = MaterialTheme.shapes.large
                 ) {
                     Text(
-                        text = if (isLoading) "Asking..." else "Ask ${selectedAgent.displayName}",
+                        text = if (isLoading) "Asking..." else "Ask Nora",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -226,8 +197,8 @@ fun MyAiScreen(
             )
         }
 
-        answer?.let { (response, agent) ->
-            AiAnswerCard(answer = response, agentName = agent.displayName)
+        answer?.let { response ->
+            AiAnswerCard(answer = response.answer, flagged = response.flagged)
         }
 
         starterQuestions.forEach { starterQuestion ->
@@ -284,7 +255,7 @@ fun AiSettingsPreferences() {
 
     PreferenceControlCard(
         title = "Language options",
-        detail = "Choose the language Cara uses for AI answers.",
+        detail = "Choose the language Nora uses for AI answers.",
         icon = Icons.Filled.Translate
     ) {
         ChipColumn(
@@ -319,7 +290,7 @@ fun AiSettingsPreferences() {
 }
 
 @Composable
-private fun AiAnswerCard(answer: String, agentName: String) {
+private fun AiAnswerCard(answer: String, flagged: Boolean) {
     val colorScheme = MaterialTheme.colorScheme
 
     Card(
@@ -332,7 +303,7 @@ private fun AiAnswerCard(answer: String, agentName: String) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "$agentName says",
+                text = if (flagged) "Nora flagged this" else "Nora says",
                 color = colorScheme.onSecondaryContainer,
                 fontSize = 21.sp,
                 lineHeight = 27.sp,

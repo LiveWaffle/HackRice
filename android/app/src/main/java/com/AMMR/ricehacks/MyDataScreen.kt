@@ -71,17 +71,17 @@ fun MyDataQrScreen(
     val colorScheme = MaterialTheme.colorScheme
 
     LaunchedEffect(patientSession.accessToken, reloadHealthDataKey) {
-        Log.d("CaraDebug", "MyDataQrScreen LaunchEffect: reloadHealthDataKey=$reloadHealthDataKey")
+        Log.d("NoraDebug", "MyDataQrScreen LaunchEffect: reloadHealthDataKey=$reloadHealthDataKey")
         isHealthDataLoading = true
         healthDataError = null
         runCatching {
             patientDataRepository.getMyHealthRecord(patientSession.accessToken, patientSession.userId)
         }.onSuccess { data ->
-            Log.d("CaraDebug", "Health record loaded successfully")
+            Log.d("NoraDebug", "Health record loaded successfully")
             healthData = data
             isHealthDataLoading = false
         }.onFailure { throwable ->
-            Log.e("CaraDebug", "Health record load failed: ${throwable.message}")
+            Log.e("NoraDebug", "Health record load failed: ${throwable.message}")
             healthDataError = throwable.message ?: "Could not load your health record."
             isHealthDataLoading = false
         }
@@ -90,7 +90,7 @@ fun MyDataQrScreen(
     LaunchedEffect(qrAccessRepository) {
         while (true) {
             val nextToken = qrAccessRepository.requestSignedAccessToken()
-            Log.d("CaraDebug", "QR Token refreshed: ${nextToken.tokenId}")
+            Log.d("NoraDebug", "QR Token refreshed: ${nextToken.tokenId}")
             token = nextToken
             statusText = "Secure code is live"
             auditLogs = qrAccessRepository.getAuditLog()

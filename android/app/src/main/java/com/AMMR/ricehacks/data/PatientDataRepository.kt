@@ -113,7 +113,7 @@ class SupabasePatientDataRepository(
     private val publishableKey: String
 ) : PatientDataRepository {
     override suspend fun getMyHealthRecord(accessToken: String, patientId: String?): PatientHealthData {
-        Log.d("CaraDebug", "Fetching patient health record (id: $patientId)")
+        Log.d("NoraDebug", "Fetching patient health record (id: $patientId)")
         val body = JSONObject()
         if (patientId != null) {
             body.put("p_patient_id", patientId)
@@ -125,7 +125,7 @@ class SupabasePatientDataRepository(
             body = body
         )
 
-        Log.d("CaraDebug", "Patient health record RPC response received")
+        Log.d("NoraDebug", "Patient health record RPC response received")
         return response.toPatientHealthData()
     }
 
@@ -159,13 +159,13 @@ class SupabasePatientDataRepository(
 
             if (connection.responseCode !in 200..299) {
                 val error = readSupabaseError(response)
-                Log.e("CaraDebug", "Supabase RPC error at $path: $error")
+                Log.e("NoraDebug", "Supabase RPC error at $path: $error")
                 throw IllegalStateException(error)
             }
 
             JSONObject(response)
         } catch (e: Exception) {
-            Log.e("CaraDebug", "Supabase RPC exception at $path: ${e.message}")
+            Log.e("NoraDebug", "Supabase RPC exception at $path: ${e.message}")
             throw e
         } finally {
             connection.disconnect()
@@ -190,7 +190,7 @@ private fun JSONObject.toPatientHealthData(): PatientHealthData {
     return PatientHealthData(
         profile = optObject("profile")?.let {
             PatientProfileData(
-                displayName = it.optString("display_name").ifBlank { "Cara patient" },
+                displayName = it.optString("display_name").ifBlank { "Nora patient" },
                 phoneNumber = it.optNullableString("phone_number"),
                 emergencyContact = it.optNullableString("emergency_contact")
             )

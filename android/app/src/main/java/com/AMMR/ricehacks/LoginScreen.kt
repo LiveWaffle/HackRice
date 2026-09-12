@@ -271,7 +271,7 @@ fun LoginScreen(
                         onPrimaryClick = {
                             val trimmedEmail = email.trim()
                             val trimmedName = displayName.trim()
-                            Log.d("CaraDebug", "Login/Signup click. Email: $trimmedEmail, Signup: $isCreatingAccount")
+                            Log.d("NoraDebug", "Login/Signup click. Email: $trimmedEmail, Signup: $isCreatingAccount")
 
                             when {
                                 trimmedEmail.isBlank() -> errorMessage = "Please enter your email."
@@ -291,11 +291,11 @@ fun LoginScreen(
                                                 isCreatingAccount = isCreatingAccount
                                             )
                                         }.onSuccess { auth ->
-                                            Log.d("CaraDebug", "Auth successful for user: ${auth.email}")
+                                            Log.d("NoraDebug", "Auth successful for user: ${auth.email}")
                                             isLoading = false
                                             onSignedIn(auth)
                                         }.onFailure { throwable ->
-                                            Log.e("CaraDebug", "Auth failed: ${throwable.message}")
+                                            Log.e("NoraDebug", "Auth failed: ${throwable.message}")
                                             isLoading = false
                                             errorMessage = throwable.message
                                                 ?: "We could not sign you in. Please try again."
@@ -338,7 +338,7 @@ private fun AppHeader() {
         Spacer(modifier = Modifier.width(14.dp))
         Column {
             Text(
-                text = "Cara",
+                text = "Nora",
                 color = colorScheme.onBackground,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
@@ -481,7 +481,7 @@ private suspend fun signInOrCreatePatient(
         email.equals(login.email, ignoreCase = true)
     }
     val profileName = displayName.ifBlank {
-        demoLogin?.name ?: "Cara patient"
+        demoLogin?.name ?: "Nora patient"
     }
 
     val auth = runCatching {

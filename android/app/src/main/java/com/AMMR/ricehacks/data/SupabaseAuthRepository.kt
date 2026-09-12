@@ -62,7 +62,7 @@ class SupabaseAuthRepository(
     }
 
     override suspend fun ensurePatientProfile(accessToken: String, displayName: String) {
-        val safeName = displayName.trim().ifBlank { "Cara patient" }
+        val safeName = displayName.trim().ifBlank { "Nora patient" }
         val body = JSONObject().put("display_name", safeName)
 
         request(
@@ -77,7 +77,7 @@ class SupabaseAuthRepository(
         body: JSONObject,
         noSessionMessage: String = "Sign in did not return a session. Please try again."
     ): AuthenticatedUser {
-        Log.d("CaraDebug", "Supabase Auth request to $path")
+        Log.d("NoraDebug", "Supabase Auth request to $path")
         val response = request(path = path, body = body)
         val json = JSONObject(response)
         val accessToken = json.optString("access_token").ifBlank {
@@ -85,7 +85,7 @@ class SupabaseAuthRepository(
         }
 
         if (accessToken.isBlank()) {
-            Log.e("CaraDebug", "Supabase Auth failed to return access token for $path")
+            Log.e("NoraDebug", "Supabase Auth failed to return access token for $path")
             throw IllegalStateException(noSessionMessage)
         }
 
@@ -102,7 +102,7 @@ class SupabaseAuthRepository(
             UserRole.Patient
         }
 
-        Log.d("CaraDebug", "Supabase Auth success for $path (user: $email, role: $role)")
+        Log.d("NoraDebug", "Supabase Auth success for $path (user: $email, role: $role)")
         return AuthenticatedUser(
             accessToken = accessToken,
             userId = userId,
@@ -143,13 +143,13 @@ class SupabaseAuthRepository(
 
             if (connection.responseCode !in 200..299) {
                 val error = readSupabaseError(response)
-                Log.e("CaraDebug", "Supabase request error at $path: $error")
+                Log.e("NoraDebug", "Supabase request error at $path: $error")
                 throw IllegalStateException(error)
             }
 
             response
         } catch (e: Exception) {
-            Log.e("CaraDebug", "Supabase network/request exception at $path: ${e.message}")
+            Log.e("NoraDebug", "Supabase network/request exception at $path: ${e.message}")
             throw e
         } finally {
             connection.disconnect()

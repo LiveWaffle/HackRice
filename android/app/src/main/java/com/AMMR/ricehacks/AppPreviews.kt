@@ -2,7 +2,6 @@ package com.AMMR.ricehacks
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import com.AMMR.ricehacks.data.AiAgent
 import com.AMMR.ricehacks.data.AllergyData
 import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.ConditionData
@@ -34,11 +33,9 @@ fun LoggedInHomeScreenPreview() {
 private object PreviewHealthAiRepository : HealthAiRepository {
     override suspend fun askQuestion(
         patientSessionToken: String,
-        message: String,
-        agent: AiAgent,
-        extraInstructions: String?
+        message: String
     ): HealthAiAnswer {
-        return HealthAiAnswer("[$agent] Bring your medicine list and ask about any side effects.")
+        return HealthAiAnswer("Bring your medicine list and ask about any side effects.")
     }
 }
 

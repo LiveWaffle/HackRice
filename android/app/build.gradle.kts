@@ -18,10 +18,10 @@ android {
     }
 
     defaultConfig {
-        val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY")
-            ?: providers.gradleProperty("GEMINI_API_KEY").getOrNull()
-            ?: providers.environmentVariable("GEMINI_API_KEY").getOrNull()
-            ?: ""
+        val backendBaseUrl = localProperties.getProperty("BACKEND_BASE_URL")
+            ?: providers.gradleProperty("BACKEND_BASE_URL").getOrNull()
+            ?: providers.environmentVariable("BACKEND_BASE_URL").getOrNull()
+            ?: "http://10.0.2.2:5000"
 
         applicationId = "com.AMMR.ricehacks"
         minSdk = 24
@@ -32,7 +32,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
     }
 
     buildTypes {

@@ -12,7 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.AMMR.ricehacks.data.AuthenticatedUser
-import com.AMMR.ricehacks.data.DirectGeminiHealthAiRepository
+import com.AMMR.ricehacks.data.BackendHealthAiRepository
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
 import com.AMMR.ricehacks.data.SupabaseAuthRepository
 import com.AMMR.ricehacks.data.SupabasePatientDataRepository
@@ -21,20 +21,20 @@ import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("CaraDebug", "MainActivity onCreate")
+        Log.d("NoraDebug", "MainActivity onCreate")
         enableEdgeToEdge()
         setContent {
             RiceHacksTheme {
-                CaraApp()
+                NoraApp()
             }
         }
     }
 }
 
 @Composable
-fun CaraApp(modifier: Modifier = Modifier) {
+fun NoraApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedUser?>(null) }
-    Log.d("CaraDebug", "CaraApp recomposed, patientSession: ${patientSession?.email}")
+    Log.d("NoraDebug", "NoraApp recomposed, patientSession: ${patientSession?.email}")
     val authRepository = remember {
         SupabaseAuthRepository(
             supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -49,7 +49,7 @@ fun CaraApp(modifier: Modifier = Modifier) {
         )
     }
     val aiRepository = remember {
-        DirectGeminiHealthAiRepository(apiKey = BuildConfig.GEMINI_API_KEY)
+        BackendHealthAiRepository(backendBaseUrl = BuildConfig.BACKEND_BASE_URL)
     }
 
     val currentSession = patientSession
