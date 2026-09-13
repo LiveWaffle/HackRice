@@ -133,13 +133,13 @@ create table if not exists public.health_observations (
   value_text text,
   unit text,
   source text,
-  observed_at timestamptz not null default now(),
+  recorded_at timestamptz not null default now(),
   notes text,
   created_at timestamptz not null default now()
 );
 
-create index if not exists health_observations_patient_record_id_observed_at_idx
-  on public.health_observations(patient_record_id, observed_at desc);
+create index if not exists health_observations_patient_record_id_recorded_at_idx
+  on public.health_observations(patient_record_id, recorded_at desc);
 
 create table if not exists public.provider_access (
   provider_access_id uuid primary key default gen_random_uuid(),
@@ -611,16 +611,16 @@ begin
           'value_text', observation.value_text,
           'unit', observation.unit,
           'source', observation.source,
-          'observed_at', observation.observed_at,
+          'recorded_at', observation.recorded_at,
           'notes', observation.notes
         )
-        order by observation.observed_at desc
+        order by observation.recorded_at desc
       )
       from (
         select *
         from public.health_observations
         where patient_record_id = record_id
-        order by observed_at desc
+        order by recorded_at desc
         limit 20
       ) observation
     ), '[]'::jsonb),

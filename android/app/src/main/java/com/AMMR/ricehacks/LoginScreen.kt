@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.AuthRepository
 import com.AMMR.ricehacks.data.AuthenticatedUser
-import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
+import com.AMMR.ricehacks.ui.theme.RelayTheme
 import kotlinx.coroutines.launch
 
 private const val DEMO_PATIENT_NAME = "Margaret Chen"
@@ -423,7 +423,7 @@ private suspend fun signInOrCreatePatient(
             accessToken = auth.accessToken,
             displayName = displayName
         )
-        return auth
+        return auth.copy(displayName = displayName)
     }
 
     val demoLogin = demoPatientLogins.firstOrNull { login ->
@@ -458,7 +458,7 @@ private suspend fun signInOrCreatePatient(
         displayName = profileName
     )
 
-    return auth
+    return auth.copy(displayName = profileName)
 }
 
 private object PreviewAuthRepository : AuthRepository {
@@ -466,7 +466,8 @@ private object PreviewAuthRepository : AuthRepository {
         return AuthenticatedUser(
             accessToken = "preview-token",
             userId = "preview-user-id",
-            email = email
+            email = email,
+            displayName = email.substringBefore('@')
         )
     }
 
@@ -478,7 +479,8 @@ private object PreviewAuthRepository : AuthRepository {
         return AuthenticatedUser(
             accessToken = "preview-token",
             userId = "preview-user-id",
-            email = email
+            email = email,
+            displayName = displayName
         )
     }
 
@@ -488,7 +490,7 @@ private object PreviewAuthRepository : AuthRepository {
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun LoginScreenPreview() {
-    RiceHacksTheme(dynamicColor = false) {
+    RelayTheme(dynamicColor = false) {
         LoginScreen(
             authRepository = PreviewAuthRepository,
             onSignedIn = {}

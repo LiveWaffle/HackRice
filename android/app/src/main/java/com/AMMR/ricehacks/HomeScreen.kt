@@ -13,11 +13,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +32,13 @@ import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.UserRole
 import com.AMMR.ricehacks.presage.PresageDailyTrackerCard
 import com.AMMR.ricehacks.presage.PresageVitalsRepository
+import com.AMMR.ricehacks.presage.SavedPresageVital
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 private enum class TrendRange(val label: String) { Day("Day"), Week("Week"), Month("Month"), Year("Year") }
 
@@ -43,7 +53,23 @@ fun HomeTabContent(
     onStartScan: () -> Unit,
 ) {
     var range by remember { mutableStateOf(TrendRange.Week) }
+    var trendVitals by remember { mutableStateOf<List<SavedPresageVital>>(emptyList()) }
+    var trendsAreLoading by remember { mutableStateOf(true) }
+    var trendsError by remember { mutableStateOf<String?>(null) }
     val colorScheme = MaterialTheme.colorScheme
+
+    LaunchedEffect(accessToken) {
+        trendsAreLoading = true
+        trendsError = null
+        runCatching {
+            presageVitalsRepository.getRecentVitals(accessToken)
+        }.onSuccess {
+            trendVitals = it
+        }.onFailure {
+            trendsError = it.message ?: "Could not load vitals."
+        }
+        trendsAreLoading = false
+    }
 
     Column(
         modifier = Modifier
@@ -53,7 +79,7 @@ fun HomeTabContent(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Text(
-            text = "Good Morning Margaret!",
+            text = "Good Morning ${patientName.ifBlank { "there" }}!",
             color = colorScheme.onBackground,
             fontSize = 32.sp,
             lineHeight = 40.sp,
@@ -107,7 +133,30 @@ fun HomeTabContent(
                     }
                 }
                 Text("Presage scan trend • ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
+                when {
+                    trendsAreLoading -> CircularProgressIndicator()
+                    trendsError != null -> Text(
+                        text = trendsError.orEmpty(),
+                        color = colorScheme.error,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp
+                    )
+                    trendVitals.filterForRange(range).isEmpty() -> Text(
+                        text = "No saved vitals in this range yet.",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 17.sp,
+                        lineHeight = 25.sp
+                    )
+                    else -> trendVitals
+                        .filterForRange(range)
+                        .take(8)
+                        .forEachIndexed { index, vital ->
+                            if (index > 0) {
+                                HorizontalDivider(color = colorScheme.outlineVariant)
+                            }
+                            HomeVitalTrendRow(vital = vital)
+                        }
+                }
             }
 
         }
@@ -118,6 +167,79 @@ fun HomeTabContent(
             Text("Bring your questions and share your record only when you are ready.", fontSize = 17.sp, lineHeight = 25.sp)
         }
     }
+}
+
+@Composable
+private fun HomeVitalTrendRow(vital: SavedPresageVital) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = vital.type.toHomeVitalLabel(),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = vital.observedAt.toHomeVitalTime(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        }
+        Text(
+            text = vital.toHomeVitalValue(),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+private fun List<SavedPresageVital>.filterForRange(range: TrendRange): List<SavedPresageVital> {
+    val today = LocalDate.now()
+    return filter { vital ->
+        val date = vital.observedAt.toHomeVitalInstant()
+            ?.atZone(ZoneId.systemDefault())
+            ?.toLocalDate()
+            ?: return@filter false
+        when (range) {
+            TrendRange.Day -> date == today
+            TrendRange.Week -> !date.isBefore(today.minusDays(7))
+            TrendRange.Month -> !date.isBefore(today.minusMonths(1))
+            TrendRange.Year -> !date.isBefore(today.minusYears(1))
+        }
+    }
+}
+
+private fun SavedPresageVital.toHomeVitalValue(): String {
+    val value = valueNumeric?.roundToInt()?.toString() ?: "--"
+    return listOfNotNull(value, unit).joinToString(" ")
+}
+
+private fun String.toHomeVitalLabel(): String {
+    return when (lowercase()) {
+        "pulse_rate" -> "Pulse"
+        "breathing_rate" -> "Breathing"
+        else -> replace("_", " ").replaceFirstChar { it.titlecase() }
+    }
+}
+
+private fun String?.toHomeVitalTime(): String {
+    val instant = toHomeVitalInstant() ?: return "Unknown time"
+    return DateTimeFormatter
+        .ofPattern("MMM d, h:mm a")
+        .withZone(ZoneId.systemDefault())
+        .format(instant)
+}
+
+private fun String?.toHomeVitalInstant(): Instant? {
+    val value = this ?: return null
+    return runCatching {
+        Instant.parse(value)
+    }.getOrNull() ?: runCatching {
+        OffsetDateTime.parse(value).toInstant()
+    }.getOrNull()
 }
 
 @Composable

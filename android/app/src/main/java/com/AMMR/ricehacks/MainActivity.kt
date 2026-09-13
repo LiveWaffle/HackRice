@@ -15,9 +15,10 @@ import androidx.compose.ui.Modifier
 import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.BackendHealthAiRepository
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
+import com.AMMR.ricehacks.data.RelaySettingsRepository
 import com.AMMR.ricehacks.data.SupabaseAuthRepository
 import com.AMMR.ricehacks.data.SupabasePatientDataRepository
-import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
+import com.AMMR.ricehacks.ui.theme.RelayTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,17 +26,17 @@ class MainActivity : ComponentActivity() {
         Log.d("NoraDebug", "MainActivity onCreate")
         enableEdgeToEdge()
         setContent {
-            HealthBridgeApp()
+            RelayApp()
         }
     }
 }
 
 @Composable
-fun HealthBridgeApp(modifier: Modifier = Modifier) {
+fun RelayApp(modifier: Modifier = Modifier) {
     var patientSession by remember { mutableStateOf<AuthenticatedUser?>(null) }
     val systemDarkTheme = isSystemInDarkTheme()
     var darkTheme by remember { mutableStateOf(systemDarkTheme) }
-    Log.d("NoraDebug", "HealthBridgeApp recomposed, patientSession: ${patientSession?.email}")
+    Log.d("NoraDebug", "RelayApp recomposed, patientSession: ${patientSession?.email}")
 
     val authRepository = remember {
         SupabaseAuthRepository(
@@ -56,8 +57,14 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
             publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         )
     }
+    val settingsRepository = remember {
+        RelaySettingsRepository(
+            supabaseUrl = BuildConfig.SUPABASE_URL,
+            publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+        )
+    }
 
-    RiceHacksTheme(darkTheme = darkTheme) {
+    RelayTheme(darkTheme = darkTheme) {
         val currentSession = patientSession
         if (currentSession != null) {
             LoggedInHomeScreen(
@@ -65,8 +72,11 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
                 qrAccessRepository = qrAccessRepository,
                 patientDataRepository = patientDataRepository,
                 aiRepository = aiRepository,
+                settingsRepository = settingsRepository,
                 darkTheme = darkTheme,
                 onDarkThemeChange = { darkTheme = it },
+                onPatientSessionChanged = { patientSession = it },
+                onSignOut = { patientSession = null },
                 modifier = modifier
             )
         } else {
@@ -81,5 +91,5 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
 
 @Composable
 fun NoraApp(modifier: Modifier = Modifier) {
-    HealthBridgeApp(modifier)
+    RelayApp(modifier)
 }

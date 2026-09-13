@@ -12,7 +12,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -32,10 +38,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.presagetech.smartspectra.ProcessingStatus
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 @Composable
 fun PresageScanScreen(
-    onReadingReady: (VitalsReading) -> Unit,
+    accessToken: String,
+    presageVitalsRepository: PresageVitalsRepository,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -51,7 +63,27 @@ fun PresageScanScreen(
     var latestBreathing by remember { mutableStateOf<VitalMetric?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasStoppedScan by remember { mutableStateOf(false) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+    var historyRefreshKey by remember { mutableStateOf(0) }
+    var savedVitals by remember { mutableStateOf<List<SavedPresageVital>>(emptyList()) }
+    var isHistoryLoading by remember { mutableStateOf(true) }
+    var historyError by remember { mutableStateOf<String?>(null) }
     val hasPresageKey = controller.hasApiKey()
+
+    LaunchedEffect(accessToken, historyRefreshKey) {
+        isHistoryLoading = true
+        historyError = null
+
+        runCatching {
+            presageVitalsRepository.getRecentVitals(accessToken)
+        }.onSuccess {
+            savedVitals = it
+        }.onFailure {
+            historyError = it.message ?: "Could not load saved vitals."
+        }
+
+        isHistoryLoading = false
+    }
 
     LaunchedEffect(metrics) {
         metrics?.cardio?.pulseRateList
@@ -88,6 +120,7 @@ fun PresageScanScreen(
             latestPulse = null
             latestBreathing = null
             errorMessage = null
+            saveMessage = null
 
             scope.launch {
                 runCatching {
@@ -122,6 +155,7 @@ fun PresageScanScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -184,6 +218,13 @@ fun PresageScanScreen(
             )
         }
 
+        saveMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Button(
             onClick = {
                 if (!controller.hasApiKey()) {
@@ -222,6 +263,7 @@ fun PresageScanScreen(
                         latestPulse = null
                         latestBreathing = null
                         errorMessage = null
+                        saveMessage = null
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -230,17 +272,31 @@ fun PresageScanScreen(
 
                 Button(
                     onClick = {
-                        onReadingReady(
-                            VitalsReading(
-                                capturedAtMillis = System.currentTimeMillis(),
-                                pulseRateBpm = latestPulse,
-                                breathingRatePerMinute = latestBreathing,
-                                validationCode = validationStatus?.code?.name ?: "UNKNOWN"
-                            )
+                        val reading = VitalsReading(
+                            capturedAtMillis = System.currentTimeMillis(),
+                            pulseRateBpm = latestPulse,
+                            breathingRatePerMinute = latestBreathing,
+                            validationCode = validationStatus?.code?.name ?: "UNKNOWN"
                         )
-                        hasStoppedScan = false
-                        latestPulse = null
-                        latestBreathing = null
+
+                        saveMessage = "Saving health reading..."
+                        scope.launch {
+                            runCatching {
+                                presageVitalsRepository.saveReading(
+                                    accessToken = accessToken,
+                                    reading = reading
+                                )
+                            }.onSuccess {
+                                saveMessage = "Health reading saved."
+                                historyRefreshKey += 1
+                                hasStoppedScan = false
+                                latestPulse = null
+                                latestBreathing = null
+                            }.onFailure {
+                                saveMessage = null
+                                errorMessage = it.message ?: "Could not save health reading."
+                            }
+                        }
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -248,6 +304,13 @@ fun PresageScanScreen(
                 }
             }
         }
+
+        PresageVitalsHistorySection(
+            savedVitals = savedVitals,
+            isLoading = isHistoryLoading,
+            errorMessage = historyError,
+            onRefresh = { historyRefreshKey += 1 }
+        )
 
         Text(
             text = "Wellness information only. This is not a medical diagnosis."
@@ -258,4 +321,116 @@ fun PresageScanScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun PresageVitalsHistorySection(
+    savedVitals: List<SavedPresageVital>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRefresh: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Saved vitals",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedButton(onClick = onRefresh) {
+                    Text("Refresh")
+                }
+            }
+
+            when {
+                isLoading -> CircularProgressIndicator()
+
+                errorMessage != null -> Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error
+                )
+
+                savedVitals.isEmpty() -> Text(
+                    text = "No saved vitals yet.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                else -> savedVitals.forEachIndexed { index, vital ->
+                    if (index > 0) {
+                        HorizontalDivider()
+                    }
+                    SavedVitalRow(vital = vital)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedVitalRow(vital: SavedPresageVital) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = vital.type.toVitalLabel(),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = vital.observedAt.toDisplayTime(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Text(
+            text = vital.valueText(),
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+private fun SavedPresageVital.valueText(): String {
+    val value = valueNumeric?.roundToInt()?.toString() ?: "--"
+    return listOfNotNull(value, unit).joinToString(" ")
+}
+
+private fun String.toVitalLabel(): String {
+    return when (lowercase()) {
+        "pulse_rate" -> "Pulse"
+        "breathing_rate" -> "Breathing"
+        else -> replace("_", " ").replaceFirstChar { it.titlecase() }
+    }
+}
+
+private fun String?.toDisplayTime(): String {
+    val value = this ?: return "Unknown time"
+    val instant = runCatching {
+        Instant.parse(value)
+    }.getOrNull() ?: runCatching {
+        OffsetDateTime.parse(value).toInstant()
+    }.getOrNull() ?: return value
+
+    return DateTimeFormatter
+        .ofPattern("MMM d, h:mm a")
+        .withZone(ZoneId.systemDefault())
+        .format(instant)
 }

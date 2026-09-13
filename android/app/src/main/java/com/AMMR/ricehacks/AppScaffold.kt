@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,10 +32,10 @@ import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
+import com.AMMR.ricehacks.data.RelaySettingsRepository
 import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
 import com.AMMR.ricehacks.presage.PresageScanScreen
 import com.AMMR.ricehacks.presage.PresageVitalsRepository
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoggedInHomeScreen(
@@ -44,8 +43,11 @@ fun LoggedInHomeScreen(
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository,
     aiRepository: HealthAiRepository,
+    settingsRepository: RelaySettingsRepository,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
+    onPatientSessionChanged: (AuthenticatedUser) -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
@@ -59,7 +61,6 @@ fun LoggedInHomeScreen(
             publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         )
     }
-    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -150,7 +151,9 @@ fun LoggedInHomeScreen(
                         MargaretRecordScreen()
                     } else {
                         HomeTabContent(
-                            patientName = patientSession.email?.substringBefore('@') ?: "there",
+                            patientName = patientSession.displayName
+                                ?: patientSession.email?.substringBefore('@')
+                                ?: "there",
                             role = patientSession.role,
                             accessToken = patientSession.accessToken,
                             presageVitalsRepository = presageVitalsRepository,
@@ -161,18 +164,8 @@ fun LoggedInHomeScreen(
                     }
                 }
                 AppDestination.Vitals -> PresageScanScreen(
-                    onReadingReady = { reading ->
-                        scope.launch {
-                            runCatching {
-                                presageVitalsRepository.saveReading(
-                                    accessToken = patientSession.accessToken,
-                                    reading = reading
-                                )
-                            }.onSuccess {
-                                selectedDestination = AppDestination.Home
-                            }
-                        }
-                    }
+                    accessToken = patientSession.accessToken,
+                    presageVitalsRepository = presageVitalsRepository
                 )
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
@@ -183,13 +176,18 @@ fun LoggedInHomeScreen(
                     patientDataRepository = patientDataRepository
                 )
                 AppDestination.Settings -> SettingsContent(
+                    patientSession = patientSession,
+                    patientDataRepository = patientDataRepository,
+                    settingsRepository = settingsRepository,
                     selectedPage = selectedSettingsPage,
                     onSelectPage = { selectedSettingsPage = it },
                     onBack = { selectedSettingsPage = null },
                     darkTheme = darkTheme,
                     onDarkThemeChange = onDarkThemeChange,
                     selectedVoiceLanguageCode = selectedVoiceLanguageCode,
-                    onVoiceLanguageChanged = { selectedVoiceLanguageCode = it }
+                    onVoiceLanguageChanged = { selectedVoiceLanguageCode = it },
+                    onPatientSessionChanged = onPatientSessionChanged,
+                    onSignOut = onSignOut
                 )
                 AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,

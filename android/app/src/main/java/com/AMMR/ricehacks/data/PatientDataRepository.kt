@@ -114,15 +114,11 @@ class SupabasePatientDataRepository(
 ) : PatientDataRepository {
     override suspend fun getMyHealthRecord(accessToken: String, patientId: String?): PatientHealthData {
         Log.d("NoraDebug", "Fetching patient health record (id: $patientId)")
-        val body = JSONObject()
-        if (patientId != null) {
-            body.put("p_patient_id", patientId)
-        }
 
         val response = requestRpc(
             path = "/rest/v1/rpc/get_my_health_record",
             accessToken = accessToken,
-            body = body
+            body = JSONObject()
         )
 
         Log.d("NoraDebug", "Patient health record RPC response received")
@@ -259,7 +255,8 @@ private fun JSONObject.toPatientHealthData(): PatientHealthData {
                 valueText = json.optNullableString("value_text"),
                 unit = json.optNullableString("unit"),
                 source = json.optNullableString("source"),
-                observedAt = json.optNullableString("observed_at"),
+                observedAt = json.optNullableString("recorded_at")
+                    ?: json.optNullableString("observed_at"),
                 notes = json.optNullableString("notes")
             )
         },

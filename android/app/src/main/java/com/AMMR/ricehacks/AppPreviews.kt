@@ -11,23 +11,28 @@ import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.PatientHealthData
 import com.AMMR.ricehacks.data.PatientProfileData
-import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
+import com.AMMR.ricehacks.data.RelaySettingsRepository
+import com.AMMR.ricehacks.ui.theme.RelayTheme
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun LoggedInHomeScreenPreview() {
-    RiceHacksTheme(dynamicColor = false) {
+    RelayTheme(dynamicColor = false) {
         LoggedInHomeScreen(
             patientSession = AuthenticatedUser(
                 accessToken = "preview-token",
                 userId = "preview-id",
-                email = "gilliamandrew22@gmail.com"
+                email = "gilliamandrew22@gmail.com",
+                displayName = "Margaret Chen"
             ),
             qrAccessRepository = FakeQrAccessRepository(),
             patientDataRepository = PreviewPatientDataRepository,
             aiRepository = PreviewHealthAiRepository,
+            settingsRepository = RelaySettingsRepository("", ""),
             darkTheme = false,
-            onDarkThemeChange = {}
+            onDarkThemeChange = {},
+            onPatientSessionChanged = {},
+            onSignOut = {}
         )
     }
 }

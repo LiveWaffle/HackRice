@@ -109,7 +109,7 @@ async function loadPatientContext(supabaseUrl: string, serviceRoleKey: string, a
       serviceSupabase.from('medications').select('*').eq('patient_record_id', patientRecordId).order('status', { ascending: true }),
       serviceSupabase.from('allergies').select('*').eq('patient_record_id', patientRecordId).order('severity', { ascending: false }),
       serviceSupabase.from('health_conditions').select('*').eq('patient_record_id', patientRecordId).order('condition_name', { ascending: true }),
-      serviceSupabase.from('health_observations').select('*').eq('patient_record_id', patientRecordId).order('observed_at', { ascending: false }).limit(12),
+      serviceSupabase.from('health_observations').select('*').eq('patient_record_id', patientRecordId).order('recorded_at', { ascending: false }).limit(12),
     ])
 
     return buildSummary(record ?? null, medications ?? [], allergies ?? [], conditions ?? [], observations ?? [])

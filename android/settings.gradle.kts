@@ -24,5 +24,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RiceHacks"
+rootProject.name = "Relay"
 include(":app")

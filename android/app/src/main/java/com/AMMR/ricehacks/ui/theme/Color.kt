@@ -2,25 +2,38 @@ package com.AMMR.ricehacks.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Letters palette — exact spec tokens.
-val Obsidian = Color(0xFF070709)
+// Relay palette.
+val IronGrey = Color(0xFF4C5454)
+val VibrantCoral = Color(0xFFFF715B)
 val PaperWhite = Color(0xFFFFFFFF)
-val CloudGray = Color(0xFFF5F5F5)
-val SkyTint = Color(0xFFD7E6F5)
-val Charcoal = Color(0xFF60606C)
-val Slate = Color(0xFF8B8B8B)
-val Ink = Color(0xFF151515)
-val SurgicalBlue = Color(0xFF2597D0)
+val Verdigris = Color(0xFF1EA896)
+val DeepMocha = Color(0xFF523F38)
 
-val SkyGradientStart = Color(0xFF779BC1)
-val SkyGradientMiddle = Color(0xFF9ABFDA)
-val SkyGradientEnd = Color(0xFFCBDCEC)
+val SoftVerdigris = Color(0xFFE6F5F2)
+val SoftCoral = Color(0xFFFFE7E2)
+val PaleGrey = Color(0xFFF5F7F7)
+
+val RelayGradientStart = Verdigris
+val RelayGradientMiddle = IronGrey
+val RelayGradientEnd = DeepMocha
+
+// Legacy aliases kept for older screen code.
+val Obsidian = DeepMocha
+val CloudGray = PaleGrey
+val SkyTint = SoftVerdigris
+val Charcoal = IronGrey
+val Slate = IronGrey
+val Ink = DeepMocha
+val SurgicalBlue = Verdigris
+val SkyGradientStart = RelayGradientStart
+val SkyGradientMiddle = RelayGradientMiddle
+val SkyGradientEnd = RelayGradientEnd
 
 // Convenience aliases for the current app's Material theme usage.
-val HealthBlue80 = SurgicalBlue
-val HealthGray80 = CloudGray
-val HealthGreen80 = SkyTint
+val HealthBlue80 = Verdigris
+val HealthGray80 = PaleGrey
+val HealthGreen80 = SoftVerdigris
 
-val HealthBlue40 = SurgicalBlue
-val HealthGray40 = Charcoal
-val HealthGreen40 = SkyTint
+val HealthBlue40 = Verdigris
+val HealthGray40 = IronGrey
+val HealthGreen40 = SoftVerdigris

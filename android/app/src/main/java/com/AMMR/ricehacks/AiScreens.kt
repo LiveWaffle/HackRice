@@ -366,6 +366,9 @@ fun ActiveNoraSession(
     var turns by remember { mutableStateOf<List<AskNoraTurn>>(emptyList()) }
     var sessionSummary by remember { mutableStateOf<String?>(null) }
     val voiceLanguageCode = defaultVoiceLanguageCode.takeIf { it.isNotBlank() } ?: "en"
+    val voicePatientName = patientSession.displayName
+        ?: patientSession.email?.substringBefore('@')
+        ?: "Patient"
     var currentVoiceState by remember { mutableStateOf(NoraVoiceState.Listening) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -444,7 +447,7 @@ fun ActiveNoraSession(
                         context = context,
                         accessToken = patientSession.accessToken,
                         language = voiceLanguageCode,
-                        patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                        patientName = voicePatientName,
                         patientId = patientSession.userId,
                         onTranscript = { text ->
                             scope.launch {
@@ -702,7 +705,7 @@ fun ActiveNoraSession(
                                                         context = context,
                                                         accessToken = patientSession.accessToken,
                                                         language = voiceLanguageCode,
-                                                        patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                                                        patientName = voicePatientName,
                                                         patientId = patientSession.userId,
                                                         onTranscript = { text ->
                                                             scope.launch {
@@ -794,7 +797,7 @@ fun ActiveNoraSession(
                                             context = context,
                                             accessToken = patientSession.accessToken,
                                             language = voiceLanguageCode,
-                                            patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                                            patientName = voicePatientName,
                                             patientId = patientSession.userId,
                                             onTranscript = { text ->
                                                 scope.launch {

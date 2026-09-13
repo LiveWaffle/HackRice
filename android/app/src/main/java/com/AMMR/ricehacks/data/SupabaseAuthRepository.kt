@@ -13,6 +13,7 @@ data class AuthenticatedUser(
     val accessToken: String,
     val userId: String?,
     val email: String?,
+    val displayName: String? = null,
     val role: UserRole = UserRole.Patient
 )
 
@@ -109,6 +110,10 @@ class SupabaseAuthRepository(
             accessToken = accessToken,
             userId = userId,
             email = email,
+            displayName = userJson
+                ?.optJSONObject("user_metadata")
+                ?.optString("display_name")
+                ?.takeIf { it.isNotBlank() },
             role = role
         )
     }

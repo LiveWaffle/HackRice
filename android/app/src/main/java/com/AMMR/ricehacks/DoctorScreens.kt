@@ -68,7 +68,7 @@ fun DoctorScannerScreen(
                         color = colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "Scan the QR code shown on the patient's Nora app to securely view their medical history.",
+                        text = "Scan the QR code shown in the patient's Relay app to securely view their medical history.",
                         fontSize = 18.sp,
                         color = colorScheme.onPrimaryContainer,
                         textAlign = TextAlign.Center

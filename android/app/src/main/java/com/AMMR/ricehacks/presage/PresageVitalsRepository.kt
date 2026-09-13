@@ -49,13 +49,40 @@ class PresageVitalsRepository(
     suspend fun getRecentVitals(
         accessToken: String
     ): List<SavedPresageVital> {
-        val response = requestRpc(
-            path = "/rest/v1/rpc/get_my_presage_vitals",
-            accessToken = accessToken,
-            requestBody = JSONObject()
+        return runCatching {
+            val response = requestRpc(
+                path = "/rest/v1/rpc/get_my_presage_vitals",
+                accessToken = accessToken,
+                requestBody = JSONObject()
+            )
+            response.toSavedPresageVitals()
+        }.getOrElse {
+            getRecentVitalsFromTables(accessToken)
+        }
+    }
+
+    private suspend fun getRecentVitalsFromTables(
+        accessToken: String
+    ): List<SavedPresageVital> {
+        val profileResponse = requestRest(
+            path = "/rest/v1/patient_profiles?select=patient_record_id&limit=1",
+            accessToken = accessToken
+        )
+        val patientRecordId = JSONArray(profileResponse)
+            .optJSONObject(0)
+            ?.optNullableString("patient_record_id")
+            ?: return emptyList()
+
+        val observationsResponse = requestRest(
+            path = "/rest/v1/health_observations?select=observation_type,value_numeric,unit,source,recorded_at&patient_record_id=eq.$patientRecordId&order=recorded_at.desc&limit=50",
+            accessToken = accessToken
         )
 
-        val array = JSONArray(response)
+        return observationsResponse.toSavedPresageVitals()
+    }
+
+    private fun String.toSavedPresageVitals(): List<SavedPresageVital> {
+        val array = JSONArray(this)
 
         return (0 until array.length()).mapNotNull { index ->
             array.optJSONObject(index)?.let { json ->
@@ -69,6 +96,7 @@ class PresageVitalsRepository(
                     unit = json.optNullableString("unit"),
                     source = json.optNullableString("source"),
                     observedAt = json.optNullableString("recorded_at")
+                        ?: json.optNullableString("observed_at")
                 )
             }
         }
@@ -110,6 +138,42 @@ class PresageVitalsRepository(
             if (connection.responseCode !in 200..299) {
                 throw IllegalStateException(
                     response.ifBlank { "Supabase request failed." }
+                )
+            }
+
+            response
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private suspend fun requestRest(
+        path: String,
+        accessToken: String
+    ): String = withContext(Dispatchers.IO) {
+        val connection = (URL("$supabaseUrl$path").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            setRequestProperty("apikey", publishableKey)
+            setRequestProperty("Authorization", "Bearer $accessToken")
+            setRequestProperty("Accept", "application/json")
+        }
+
+        try {
+            val responseStream = if (connection.responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: connection.inputStream
+            }
+
+            val response = responseStream
+                .bufferedReader()
+                .use { it.readText() }
+
+            if (connection.responseCode !in 200..299) {
+                throw IllegalStateException(
+                    response.ifBlank { "Supabase vitals request failed." }
                 )
             }
 

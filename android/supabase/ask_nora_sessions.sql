@@ -12,6 +12,12 @@ create table if not exists public.ask_nora_sessions (
   ended_at timestamptz
 );
 
+alter table public.ask_nora_sessions
+  add column if not exists conversation_id text;
+
+alter table public.ask_nora_sessions
+  add column if not exists summary text;
+
 create table if not exists public.ask_nora_turns (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.ask_nora_sessions(id) on delete cascade,

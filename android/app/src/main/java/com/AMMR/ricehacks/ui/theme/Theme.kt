@@ -13,49 +13,73 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Obsidian,
+    primary = Verdigris,
     onPrimary = PaperWhite,
-    secondary = SurgicalBlue,
-    onSecondary = PaperWhite,
-    tertiary = SkyTint,
-    background = Obsidian,
+    primaryContainer = IronGrey,
+    onPrimaryContainer = PaperWhite,
+    secondary = VibrantCoral,
+    onSecondary = DeepMocha,
+    secondaryContainer = DeepMocha,
+    onSecondaryContainer = PaperWhite,
+    tertiary = SoftVerdigris,
+    onTertiary = DeepMocha,
+    background = DeepMocha,
     onBackground = PaperWhite,
-    surface = Charcoal,
+    surface = IronGrey,
     onSurface = PaperWhite,
-    surfaceVariant = CloudGray,
+    surfaceContainer = Color(0xFF5C6666),
+    surfaceContainerHigh = Color(0xFF667070),
+    surfaceVariant = IronGrey,
     onSurfaceVariant = PaperWhite,
-    outline = Slate,
-    outlineVariant = Slate
+    outline = SoftVerdigris,
+    outlineVariant = Color(0xFF708080),
+    error = VibrantCoral,
+    onError = DeepMocha,
+    errorContainer = DeepMocha,
+    onErrorContainer = SoftCoral
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Obsidian,
+    primary = Verdigris,
     onPrimary = PaperWhite,
-    secondary = SurgicalBlue,
-    onSecondary = PaperWhite,
-    tertiary = SkyTint,
+    primaryContainer = SoftVerdigris,
+    onPrimaryContainer = DeepMocha,
+    secondary = VibrantCoral,
+    onSecondary = DeepMocha,
+    secondaryContainer = SoftCoral,
+    onSecondaryContainer = DeepMocha,
+    tertiary = IronGrey,
+    onTertiary = PaperWhite,
     background = PaperWhite,
-    onBackground = Obsidian,
+    onBackground = DeepMocha,
     surface = PaperWhite,
-    onSurface = Obsidian,
-    surfaceVariant = CloudGray,
-    onSurfaceVariant = Charcoal,
-    outline = Slate,
-    outlineVariant = Slate,
+    onSurface = DeepMocha,
+    surfaceContainer = PaleGrey,
+    surfaceContainerHigh = SoftVerdigris,
+    surfaceVariant = PaleGrey,
+    onSurfaceVariant = IronGrey,
+    outline = IronGrey,
+    outlineVariant = SoftVerdigris,
+    error = VibrantCoral,
+    onError = DeepMocha,
+    errorContainer = SoftCoral,
+    onErrorContainer = DeepMocha,
     inverseOnSurface = PaperWhite,
-    inverseSurface = Obsidian
+    inverseSurface = DeepMocha
 )
 
-val LettersSkyGradient = Brush.verticalGradient(
+val RelayGradient = Brush.verticalGradient(
     colors = listOf(
-        SkyGradientStart,
-        SkyGradientMiddle,
-        SkyGradientEnd
+        RelayGradientStart,
+        RelayGradientMiddle,
+        RelayGradientEnd
     )
 )
 
+val LettersSkyGradient = RelayGradient
+
 @Composable
-fun RiceHacksTheme(
+fun RelayTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
@@ -73,6 +97,19 @@ fun RiceHacksTheme(
         colorScheme = colorScheme,
         typography = LettersTypography,
         shapes = LettersShapes,
+        content = content
+    )
+}
+
+@Composable
+fun RiceHacksTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    RelayTheme(
+        darkTheme = darkTheme,
+        dynamicColor = dynamicColor,
         content = content
     )
 }
