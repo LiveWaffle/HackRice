@@ -1,4 +1,5 @@
 .env
 api/.env
+__pycache__/
 .codex
 .agents
