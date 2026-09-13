@@ -50,7 +50,11 @@ fun LoggedInHomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
+<<<<<<< Updated upstream
     var showingMargaretRecord by remember { mutableStateOf(false) }
+=======
+    var selectedVoiceLanguageCode by remember { mutableStateOf("en") }
+>>>>>>> Stashed changes
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
     PresageVitalsRepository(
@@ -75,7 +79,7 @@ fun LoggedInHomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Nora",
+                                text = "Relay",
                                 color = colorScheme.onBackground,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -184,7 +188,9 @@ fun LoggedInHomeScreen(
                     onSelectPage = { selectedSettingsPage = it },
                     onBack = { selectedSettingsPage = null },
                     darkTheme = darkTheme,
-                    onDarkThemeChange = onDarkThemeChange
+                    onDarkThemeChange = onDarkThemeChange,
+                    selectedVoiceLanguageCode = selectedVoiceLanguageCode,
+                    onVoiceLanguageChanged = { selectedVoiceLanguageCode = it }
                 )
                 AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,
@@ -192,7 +198,8 @@ fun LoggedInHomeScreen(
                     askNoraRepository = SupabaseAskNoraRepository(
                         supabaseUrl = BuildConfig.SUPABASE_URL,
                         publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-                    )
+                    ),
+                    defaultVoiceLanguageCode = selectedVoiceLanguageCode
                 )
             }
         }
