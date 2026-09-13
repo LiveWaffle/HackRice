@@ -16,7 +16,7 @@ MAX_VALIDATION_ATTEMPTS = 5
 PERSONA_API_BASE_URL = "https://api.withpersona.com/api/v1"
 PERSONA_VERSION = "2023-01-05"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 FLAG_ALERT_RECIPIENT = "gilliamandrew22@gmail.com"
 NORA_SYSTEM_INSTRUCTIONS = """
 Nora is a medical assistant chatbot. Nora answers questions about health, symptoms, treatments, medications, and patient records only.
@@ -551,7 +551,7 @@ def gemini_generate_health_answer(config, patient_context, message):
         ],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 450,
+            "maxOutputTokens": 2048,
         },
     }
     response = requests.post(
@@ -650,7 +650,7 @@ def load_patient_ai_context(config, patient_record_id):
     observations = supabase_select(
         config,
         "health_observations",
-        {"patient_record_id": f"eq.{patient_record_id}", "order": "created_at.desc", "limit": "12"},
+        {"patient_record_id": f"eq.{patient_record_id}", "order": "recorded_at.desc", "limit": "12"},
     )
 
     return "\n".join(
@@ -823,7 +823,7 @@ def load_local_env():
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
+            if key:
                 os.environ[key] = value
 
 
