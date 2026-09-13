@@ -38,9 +38,9 @@ fun HomeTabContent(
     role: UserRole = UserRole.Patient,
     accessToken: String,
     presageVitalsRepository: PresageVitalsRepository,
-    onOpenRecord: () -> Unit,
     onViewHealthData: () -> Unit,
-    onStartScan: () -> Unit
+    onOpenRecord: () -> Unit,
+    onStartScan: () -> Unit,
 ) {
     var range by remember { mutableStateOf(TrendRange.Week) }
     val colorScheme = MaterialTheme.colorScheme
@@ -70,6 +70,11 @@ fun HomeTabContent(
             lineHeight = 28.sp
         )
 
+        PresageDailyTrackerCard(
+            accessToken = accessToken,
+            presageVitalsRepository = presageVitalsRepository
+        )
+
         if (role == UserRole.Doctor) {
             HomeActionCard(
                 title = "Patient Scanner",
@@ -78,18 +83,12 @@ fun HomeTabContent(
                 onClick = onStartScan
             )
         } else {
-            PresageDailyTrackerCard(
-                accessToken = accessToken,
-                presageVitalsRepository = presageVitalsRepository
-            )
-
             HomeActionCard(
                 title = "My health record",
                 message = "Medicines, allergies, conditions, and documents.",
                 buttonText = "Open record",
                 onClick = onOpenRecord
             )
-
             DashboardCard("Your latest health summary") {
                 Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
                 Text("2 providers • 3 current medicines • 1 recent vital", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)

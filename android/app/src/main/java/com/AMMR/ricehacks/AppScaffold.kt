@@ -49,7 +49,7 @@ fun LoggedInHomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
-    var showingMargaretRecord by remember { mutableStateOf(false) }
+    var selectedVoiceLanguageCode by remember { mutableStateOf("en") }
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
         PresageVitalsRepository(
@@ -57,6 +57,7 @@ fun LoggedInHomeScreen(
             publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         )
     }
+    >>>>>>> main
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -74,7 +75,7 @@ fun LoggedInHomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Nora",
+                                text = "Relay",
                                 color = colorScheme.onBackground,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -112,6 +113,7 @@ fun LoggedInHomeScreen(
                             selected = selectedDestination == destination,
                             onClick = {
                                 showingMargaretRecord = false
+                                Log.d("NoraDebug", "Navigating to: ${destination.label}")
                                 selectedDestination = destination
                                 if (destination != AppDestination.Settings) {
                                     selectedSettingsPage = null
@@ -151,13 +153,12 @@ fun LoggedInHomeScreen(
                             role = patientSession.role,
                             accessToken = patientSession.accessToken,
                             presageVitalsRepository = presageVitalsRepository,
-                            onOpenRecord = { showingMargaretRecord = true },
                             onViewHealthData = { selectedDestination = AppDestination.MyData },
+                            onOpenRecord = { showingMargaretRecord = true },
                             onStartScan = { selectedDestination = AppDestination.Vitals }
                         )
                     }
                 }
-
                 AppDestination.Vitals -> PresageScanScreen(
                     onReadingReady = { reading ->
                         scope.launch {
@@ -170,7 +171,6 @@ fun LoggedInHomeScreen(
                         }
                     }
                 )
-
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
@@ -184,7 +184,9 @@ fun LoggedInHomeScreen(
                     onSelectPage = { selectedSettingsPage = it },
                     onBack = { selectedSettingsPage = null },
                     darkTheme = darkTheme,
-                    onDarkThemeChange = onDarkThemeChange
+                    onDarkThemeChange = onDarkThemeChange,
+                    selectedVoiceLanguageCode = selectedVoiceLanguageCode,
+                    onVoiceLanguageChanged = { selectedVoiceLanguageCode = it }
                 )
                 AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,
@@ -192,7 +194,8 @@ fun LoggedInHomeScreen(
                     askNoraRepository = SupabaseAskNoraRepository(
                         supabaseUrl = BuildConfig.SUPABASE_URL,
                         publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-                    )
+                    ),
+                    defaultVoiceLanguageCode = selectedVoiceLanguageCode
                 )
             }
         }
