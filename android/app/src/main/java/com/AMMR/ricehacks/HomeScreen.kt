@@ -109,20 +109,22 @@ fun HomeTabContent(
             buttonText = "View care"
         )
 
-        DashboardCard("Health trends") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                TrendRange.entries.forEach { option ->
-                    FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
+        if (role == UserRole.Patient) {
+            DashboardCard("Health trends") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    TrendRange.entries.forEach { option ->
+                        FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
+                    }
                 }
+                Text("Presage scan trend • ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
             }
-            Text("Presage scan trend • ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-            Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
-        }
 
-        DashboardCard("Start a Presage scan") {
-            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
-            Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            DashboardCard("Start a Presage scan") {
+                Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+                Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 
