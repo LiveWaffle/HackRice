@@ -2,6 +2,8 @@ package com.AMMR.ricehacks
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import com.AMMR.ricehacks.presage.PresageVitalsRepository
+import com.AMMR.ricehacks.presage.PresageDailyTrackerCard
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,7 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun HomeTabContent() {
+fun HomeTabContent(
+    accessToken: String,
+    presageVitalsRepository: PresageVitalsRepository
+) {
     val colorScheme = MaterialTheme.colorScheme
 
     Column(
@@ -43,6 +48,11 @@ fun HomeTabContent() {
             fontSize = 20.sp,
             lineHeight = 30.sp
         )
+
+        PresageDailyTrackerCard(
+            accessToken = accessToken,
+            presageVitalsRepository = presageVitalsRepository
+)
 
         HomeActionCard(
             title = "My health record",

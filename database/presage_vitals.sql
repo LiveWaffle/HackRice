@@ -33,7 +33,7 @@ begin
     value_numeric,
     unit,
     source,
-    observed_at,
+    recorded_at,
     notes
   )
   values
@@ -81,3 +81,54 @@ grant execute on function public.save_presage_vitals(
   timestamptz,
   text
 ) to authenticated;
+
+create or replace function public.get_my_presage_vitals()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_record_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select patient_record_id
+  into current_record_id
+  from public.patient_profiles
+  where id = auth.uid();
+
+  if current_record_id is null then
+    return '[]'::jsonb;
+  end if;
+
+  return coalesce(
+    (
+      select jsonb_agg(
+        jsonb_build_object(
+          'observation_type', observation.observation_type,
+          'value_numeric', observation.value_numeric,
+          'unit', observation.unit,
+          'source', observation.source,
+          'recorded_at', observation.recorded_at
+        )
+        order by observation.recorded_at desc
+      )
+      from (
+        select *
+        from public.health_observations
+        where patient_record_id = current_record_id
+          and lower(source) = 'presage'
+        order by recorded_at desc
+        limit 50
+      ) observation
+    ),
+    '[]'::jsonb
+  );
+end;
+$$;
+
+revoke all on function public.get_my_presage_vitals() from public;
+grant execute on function public.get_my_presage_vitals() to authenticated;

@@ -1,6 +1,9 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.rememberCoroutineScope
+import com.AMMR.ricehacks.presage.PresageVitalsRepository
+import kotlinx.coroutines.launch
 import com.AMMR.ricehacks.presage.PresageScanScreen
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,6 +46,13 @@ fun LoggedInHomeScreen(
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
     val colorScheme = MaterialTheme.colorScheme
+    val presageVitalsRepository = remember {
+    PresageVitalsRepository(
+        supabaseUrl = BuildConfig.SUPABASE_URL,
+        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+    )
+}
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -124,10 +134,22 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent()
+                AppDestination.Home -> HomeTabContent(
+                    accessToken = patientSession.accessToken,
+                    presageVitalsRepository = presageVitalsRepository
+)
                 AppDestination.Vitals -> PresageScanScreen(
-                    onReadingReady = { }
-                    )
+                    onReadingReady = { reading ->
+                        scope.launch {
+                            runCatching {
+                                presageVitalsRepository.saveReading(
+                                    accessToken = patientSession.accessToken,
+                                    reading = reading
+                )
+            }
+        }
+    }
+)
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
