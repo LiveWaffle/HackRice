@@ -1,29 +1,33 @@
 package com.AMMR.ricehacks
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.AMMR.ricehacks.data.UserRole
 
 enum class AppDestination(
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val requiredRole: UserRole? = null
 ) {
     Home("Home", Icons.Filled.Home),
-    Vitals("Vitals", Icons.Filled.MonitorHeart),
-    MyData("My Data", Icons.Filled.Folder),
-    Settings("Settings", Icons.Filled.Settings),
-    Ai("AI", Icons.Filled.AutoAwesome)
+    Vitals("Vitals", Icons.Filled.MonitorHeart, UserRole.Patient),
+    MyData("My Data", Icons.Filled.Folder, UserRole.Patient),
+    AskNora("Ask Nora", Icons.Filled.AutoAwesome, UserRole.Patient),
+    Scanner("Scanner", Icons.Filled.QrCodeScanner, UserRole.Doctor),
+    Settings("Settings", Icons.Filled.Settings)
 }
 
 enum class SettingsPage(

@@ -1,5 +1,6 @@
 package com.AMMR.ricehacks.data
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -8,14 +9,23 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class AuthenticatedPatient(
+data class AuthenticatedUser(
     val accessToken: String,
-    val email: String?
+    val userId: String?,
+    val email: String?,
+    val role: UserRole = UserRole.Patient
 )
 
+typealias AuthenticatedPatient = AuthenticatedUser
+
+enum class UserRole {
+    Patient,
+    Doctor
+}
+
 interface AuthRepository {
-    suspend fun signIn(email: String, password: String): AuthenticatedPatient
-    suspend fun signUp(email: String, password: String, displayName: String): AuthenticatedPatient
+    suspend fun signIn(email: String, password: String): AuthenticatedUser
+    suspend fun signUp(email: String, password: String, displayName: String): AuthenticatedUser
     suspend fun ensurePatientProfile(accessToken: String, displayName: String)
 }
 
@@ -23,7 +33,7 @@ class SupabaseAuthRepository(
     private val supabaseUrl: String,
     private val publishableKey: String
 ) : AuthRepository {
-    override suspend fun signIn(email: String, password: String): AuthenticatedPatient {
+    override suspend fun signIn(email: String, password: String): AuthenticatedUser {
         val body = JSONObject()
             .put("email", email.trim())
             .put("password", password)
@@ -38,7 +48,7 @@ class SupabaseAuthRepository(
         email: String,
         password: String,
         displayName: String
-    ): AuthenticatedPatient {
+    ): AuthenticatedUser {
         val metadata = JSONObject()
             .put("display_name", displayName.trim())
         val body = JSONObject()
@@ -49,12 +59,12 @@ class SupabaseAuthRepository(
         return requestAuth(
             path = "/auth/v1/signup",
             body = body,
-            noSessionMessage = "Account created. Check your email to confirm it, then sign in."
+            noSessionMessage = "Confirm your email to sign in, or try signing in if you already have an account."
         )
     }
 
     override suspend fun ensurePatientProfile(accessToken: String, displayName: String) {
-        val safeName = displayName.trim().ifBlank { "HealthBridge patient" }
+        val safeName = displayName.trim().ifBlank { "Nora patient" }
         val body = JSONObject().put("display_name", safeName)
 
         request(
@@ -68,7 +78,8 @@ class SupabaseAuthRepository(
         path: String,
         body: JSONObject,
         noSessionMessage: String = "Sign in did not return a session. Please try again."
-    ): AuthenticatedPatient {
+    ): AuthenticatedUser {
+        Log.d("NoraDebug", "Supabase Auth request to $path")
         val response = request(path = path, body = body)
         val json = JSONObject(response)
         val accessToken = json.optString("access_token").ifBlank {
@@ -76,13 +87,30 @@ class SupabaseAuthRepository(
         }
 
         if (accessToken.isBlank()) {
+            Log.e("NoraDebug", "Supabase Auth failed to return access token for $path")
             throw IllegalStateException(noSessionMessage)
         }
 
-        val email = json.optJSONObject("user")?.optString("email")
-            ?: json.optJSONObject("session")?.optJSONObject("user")?.optString("email")
+        val userJson = json.optJSONObject("user")
+            ?: json.optJSONObject("session")?.optJSONObject("user")
+        
+        val email = userJson?.optString("email")
+        val userId = userJson?.optString("id")
+        
+        // Simple logic: if email contains "doctor", assume doctor role for this hackathon
+        val role = if (email?.contains("doctor", ignoreCase = true) == true) {
+            UserRole.Doctor
+        } else {
+            UserRole.Patient
+        }
 
-        return AuthenticatedPatient(accessToken = accessToken, email = email)
+        Log.d("NoraDebug", "Supabase Auth success for $path (user: $email, role: $role)")
+        return AuthenticatedUser(
+            accessToken = accessToken,
+            userId = userId,
+            email = email,
+            role = role
+        )
     }
 
     private suspend fun request(
@@ -116,10 +144,15 @@ class SupabaseAuthRepository(
             val response = BufferedReader(InputStreamReader(stream)).use { it.readText() }
 
             if (connection.responseCode !in 200..299) {
-                throw IllegalStateException(readSupabaseError(response))
+                val error = readSupabaseError(response)
+                Log.e("NoraDebug", "Supabase request error at $path: $error")
+                throw IllegalStateException(error)
             }
 
             response
+        } catch (e: Exception) {
+            Log.e("NoraDebug", "Supabase network/request exception at $path: ${e.message}")
+            throw e
         } finally {
             connection.disconnect()
         }

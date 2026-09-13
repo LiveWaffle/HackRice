@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import android.util.Log
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -18,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.AuditLogEntry
 import com.AMMR.ricehacks.data.AllergyData
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.ConditionData
 import com.AMMR.ricehacks.data.DoctorScanRequest
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
@@ -55,30 +57,35 @@ import kotlin.math.max
 
 @Composable
 fun MyDataQrScreen(
-    patientSession: AuthenticatedPatient,
+    patientSession: AuthenticatedUser,
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository
 ) {
     var token by remember { mutableStateOf<SignedQrToken?>(null) }
     var secondsRemaining by remember { mutableStateOf(FakeQrAccessRepository.TOKEN_TTL_SECONDS) }
-    var approvalRequest by remember { mutableStateOf<DoctorScanRequest?>(null) }
     var auditLogs by remember { mutableStateOf<List<AuditLogEntry>>(emptyList()) }
     var healthData by remember { mutableStateOf<PatientHealthData?>(null) }
     var isHealthDataLoading by remember { mutableStateOf(true) }
     var healthDataError by remember { mutableStateOf<String?>(null) }
     var reloadHealthDataKey by remember { mutableStateOf(0) }
     var statusText by remember { mutableStateOf("Getting secure code...") }
+    var providerName by remember { mutableStateOf("") }
+    var providerSpecialty by remember { mutableStateOf("") }
+    var providerEntryMessage by remember { mutableStateOf<String?>(null) }
     val colorScheme = MaterialTheme.colorScheme
 
     LaunchedEffect(patientSession.accessToken, reloadHealthDataKey) {
+        Log.d("NoraDebug", "MyDataQrScreen LaunchEffect: reloadHealthDataKey=$reloadHealthDataKey")
         isHealthDataLoading = true
         healthDataError = null
         runCatching {
-            patientDataRepository.getMyHealthRecord(patientSession.accessToken)
+            patientDataRepository.getMyHealthRecord(patientSession.accessToken, patientSession.userId)
         }.onSuccess { data ->
+            Log.d("NoraDebug", "Health record loaded successfully")
             healthData = data
             isHealthDataLoading = false
         }.onFailure { throwable ->
+            Log.e("NoraDebug", "Health record load failed: ${throwable.message}")
             healthDataError = throwable.message ?: "Could not load your health record."
             isHealthDataLoading = false
         }
@@ -87,8 +94,8 @@ fun MyDataQrScreen(
     LaunchedEffect(qrAccessRepository) {
         while (true) {
             val nextToken = qrAccessRepository.requestSignedAccessToken()
+            Log.d("NoraDebug", "QR Token refreshed: ${nextToken.tokenId}")
             token = nextToken
-            approvalRequest = null
             statusText = "Secure code is live"
             auditLogs = qrAccessRepository.getAuditLog()
             delay(FakeQrAccessRepository.REFRESH_SECONDS * 1000L)
@@ -102,14 +109,6 @@ fun MyDataQrScreen(
                 0,
                 ((currentToken.expiresAtMillis - System.currentTimeMillis()) / 1000L).toInt()
             )
-
-            if (approvalRequest == null) {
-                approvalRequest = qrAccessRepository.getPendingApprovalRequest(currentToken.tokenId)
-                if (approvalRequest != null) {
-                    statusText = "Doctor is asking to view your record"
-                }
-            }
-
             auditLogs = qrAccessRepository.getAuditLog()
             delay(1000)
         }
@@ -138,6 +137,29 @@ fun MyDataQrScreen(
             lineHeight = 30.sp,
             modifier = Modifier.fillMaxWidth()
         )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Add a healthcare provider", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Keep your care team together so you can choose what to share.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 24.sp)
+                OutlinedTextField(value = providerName, onValueChange = { providerName = it }, label = { Text("Provider or clinic name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = providerSpecialty, onValueChange = { providerSpecialty = it }, label = { Text("Specialty, such as cardiology") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Button(
+                    onClick = {
+                        providerEntryMessage = if (providerName.isBlank()) "Enter a provider or clinic name first." else "Provider details are ready to save when provider write access is connected."
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Save provider", fontSize = 17.sp) }
+                providerEntryMessage?.let { Text(it, color = colorScheme.onSurfaceVariant, fontSize = 15.sp, lineHeight = 21.sp) }
+            }
+        }
 
         QrCodeCard(
             token = token,
@@ -194,29 +216,6 @@ fun MyDataQrScreen(
         AuditLogCard(auditLogs = auditLogs)
 
         Spacer(modifier = Modifier.height(16.dp))
-    }
-
-    approvalRequest?.let { request ->
-        PatientApprovalDialog(
-            request = request,
-            onApprove = {
-                statusText = "Approved. Your doctor can view the shared record."
-                approvalRequest = null
-            },
-            onDeny = { timedOut ->
-                statusText = if (timedOut) {
-                    "Request timed out and was denied."
-                } else {
-                    "Request denied."
-                }
-                approvalRequest = null
-            },
-            submitDecision = { approved ->
-                val result = qrAccessRepository.submitApprovalDecision(request.requestId, approved)
-                auditLogs = qrAccessRepository.getAuditLog()
-                result
-            }
-        )
     }
 }
 
@@ -322,7 +321,7 @@ private fun UnlinkedHealthRecordCard() {
 }
 
 @Composable
-private fun HealthRecordOverviewCard(data: PatientHealthData) {
+fun HealthRecordOverviewCard(data: PatientHealthData) {
     val colorScheme = MaterialTheme.colorScheme
     val record = data.healthRecord
 
@@ -506,7 +505,7 @@ private fun SecurityNoteCard() {
 }
 
 @Composable
-private fun MyDataSectionCard(
+fun MyDataSectionCard(
     title: String,
     items: List<HealthRecordItem>,
     emptyText: String
@@ -550,7 +549,7 @@ private fun MyDataSectionCard(
 }
 
 @Composable
-private fun HealthRecordRow(item: HealthRecordItem) {
+fun HealthRecordRow(item: HealthRecordItem) {
     val colorScheme = MaterialTheme.colorScheme
 
     Column(modifier = Modifier.fillMaxWidth()) {

@@ -3,7 +3,7 @@ package com.AMMR.ricehacks
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.AMMR.ricehacks.data.AllergyData
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.ConditionData
 import com.AMMR.ricehacks.data.FakeQrAccessRepository
 import com.AMMR.ricehacks.data.HealthAiAnswer
@@ -18,13 +18,16 @@ import com.AMMR.ricehacks.ui.theme.RiceHacksTheme
 fun LoggedInHomeScreenPreview() {
     RiceHacksTheme(dynamicColor = false) {
         LoggedInHomeScreen(
-            patientSession = AuthenticatedPatient(
+            patientSession = AuthenticatedUser(
                 accessToken = "preview-token",
+                userId = "preview-id",
                 email = "gilliamandrew22@gmail.com"
             ),
             qrAccessRepository = FakeQrAccessRepository(),
             patientDataRepository = PreviewPatientDataRepository,
-            aiRepository = PreviewHealthAiRepository
+            aiRepository = PreviewHealthAiRepository,
+            darkTheme = false,
+            onDarkThemeChange = {}
         )
     }
 }
@@ -36,10 +39,17 @@ private object PreviewHealthAiRepository : HealthAiRepository {
     ): HealthAiAnswer {
         return HealthAiAnswer("Bring your medicine list and ask about any side effects.")
     }
+
+    override suspend fun summarizeConversation(
+        patientSessionToken: String,
+        transcript: String
+    ): String {
+        return "Preview summary of the conversation."
+    }
 }
 
 private object PreviewPatientDataRepository : PatientDataRepository {
-    override suspend fun getMyHealthRecord(accessToken: String): PatientHealthData {
+    override suspend fun getMyHealthRecord(accessToken: String, patientId: String?): PatientHealthData {
         return PatientHealthData(
             profile = PatientProfileData(
                 displayName = "Andrew Gilliam",

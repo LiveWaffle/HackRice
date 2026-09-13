@@ -1,17 +1,14 @@
 import java.util.Properties
 
-val localProperties = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use { load(it) }
-    }
-}
-
-val presageApiKey = localProperties.getProperty("PRESAGE_API_KEY", "")
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
 
 android {
@@ -21,10 +18,16 @@ android {
     }
 
     defaultConfig {
-        val geminiApiKey = providers.gradleProperty("GEMINI_API_KEY")
-            .orElse(providers.environmentVariable("GEMINI_API_KEY"))
-            .orElse("")
-            .get()
+        val presageApiKey = localProperties.getProperty("PRESAGE_API_KEY")
+            ?: providers.gradleProperty("PRESAGE_API_KEY").getOrNull()
+            ?: providers.environmentVariable("PRESAGE_API_KEY").getOrNull()
+            ?: ""
+        // ELEVENLABS_AGENT_ID is safe to keep in local.properties (client-side/public metadata).
+        // ELEVENLABS_API_KEY must stay server-side in Supabase Edge Function secrets, not in Android app config.
+        val elevenLabsAgentId = localProperties.getProperty("ELEVENLABS_AGENT_ID")
+            ?: providers.gradleProperty("ELEVENLABS_AGENT_ID").getOrNull()
+            ?: providers.environmentVariable("ELEVENLABS_AGENT_ID").getOrNull()
+            ?: ""
 
         applicationId = "com.AMMR.ricehacks"
         minSdk = 28
@@ -35,8 +38,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         buildConfigField("String", "PRESAGE_API_KEY", "\"$presageApiKey\"")
+        buildConfigField("String", "ELEVENLABS_AGENT_ID", "\"$elevenLabsAgentId\"")
     }
 
     buildTypes {
@@ -70,6 +73,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.zxing.core)
+    implementation(libs.elevenlabs.agents)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

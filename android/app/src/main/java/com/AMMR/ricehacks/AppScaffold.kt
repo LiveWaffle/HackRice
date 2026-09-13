@@ -1,10 +1,7 @@
 package com.AMMR.ricehacks
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.runtime.rememberCoroutineScope
-import com.AMMR.ricehacks.presage.PresageVitalsRepository
-import kotlinx.coroutines.launch
-import com.AMMR.ricehacks.presage.PresageScanScreen
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,23 +21,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.AMMR.ricehacks.data.AuthenticatedPatient
+import com.AMMR.ricehacks.data.AuthenticatedUser
 import com.AMMR.ricehacks.data.HealthAiRepository
 import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
+import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
+import com.AMMR.ricehacks.presage.PresageScanScreen
+import com.AMMR.ricehacks.presage.PresageVitalsRepository
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoggedInHomeScreen(
-    patientSession: AuthenticatedPatient,
+    patientSession: AuthenticatedUser,
     qrAccessRepository: QrAccessRepository,
     patientDataRepository: PatientDataRepository,
     aiRepository: HealthAiRepository,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
@@ -48,11 +52,11 @@ fun LoggedInHomeScreen(
     var showingMargaretRecord by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
-    PresageVitalsRepository(
-        supabaseUrl = BuildConfig.SUPABASE_URL,
-        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-    )
-}
+        PresageVitalsRepository(
+            supabaseUrl = BuildConfig.SUPABASE_URL,
+            publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+        )
+    }
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -65,12 +69,12 @@ fun LoggedInHomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 12.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
                             Text(
-                                text = "HealthBridge",
+                                text = "Nora",
                                 color = colorScheme.onBackground,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -101,31 +105,33 @@ fun LoggedInHomeScreen(
         },
         bottomBar = {
             NavigationBar(containerColor = colorScheme.surfaceContainer) {
-                AppDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        selected = selectedDestination == destination,
-                        onClick = {
-                            showingMargaretRecord = false
-                            selectedDestination = destination
-                            if (destination != AppDestination.Settings) {
-                                selectedSettingsPage = null
+                AppDestination.entries
+                    .filter { it.requiredRole == null || it.requiredRole == patientSession.role }
+                    .forEach { destination ->
+                        NavigationBarItem(
+                            selected = selectedDestination == destination,
+                            onClick = {
+                                showingMargaretRecord = false
+                                selectedDestination = destination
+                                if (destination != AppDestination.Settings) {
+                                    selectedSettingsPage = null
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = destination.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = destination.label,
+                                    fontSize = 13.sp
+                                )
                             }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = destination.label,
-                                fontSize = 13.sp
-                            )
-                        }
-                    )
-                }
+                        )
+                    }
             }
         }
     ) { innerPadding ->
@@ -141,12 +147,17 @@ fun LoggedInHomeScreen(
                         MargaretRecordScreen()
                     } else {
                         HomeTabContent(
+                            patientName = patientSession.email?.substringBefore('@') ?: "there",
+                            role = patientSession.role,
                             accessToken = patientSession.accessToken,
                             presageVitalsRepository = presageVitalsRepository,
-                            onOpenRecord = { showingMargaretRecord = true }
+                            onOpenRecord = { showingMargaretRecord = true },
+                            onViewHealthData = { selectedDestination = AppDestination.MyData },
+                            onStartScan = { selectedDestination = AppDestination.Vitals }
                         )
                     }
                 }
+
                 AppDestination.Vitals -> PresageScanScreen(
                     onReadingReady = { reading ->
                         scope.launch {
@@ -154,24 +165,34 @@ fun LoggedInHomeScreen(
                                 presageVitalsRepository.saveReading(
                                     accessToken = patientSession.accessToken,
                                     reading = reading
+                                )
+                            }
+                        }
+                    }
                 )
-            }
-        }
-    }
-)
+
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,
                     patientDataRepository = patientDataRepository
                 )
+                AppDestination.Scanner -> DoctorScannerScreen(
+                    patientDataRepository = patientDataRepository
+                )
                 AppDestination.Settings -> SettingsContent(
                     selectedPage = selectedSettingsPage,
                     onSelectPage = { selectedSettingsPage = it },
-                    onBack = { selectedSettingsPage = null }
+                    onBack = { selectedSettingsPage = null },
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = onDarkThemeChange
                 )
-                AppDestination.Ai -> MyAiScreen(
+                AppDestination.AskNora -> AskNoraScreen(
                     patientSession = patientSession,
-                    aiRepository = aiRepository
+                    aiRepository = aiRepository,
+                    askNoraRepository = SupabaseAskNoraRepository(
+                        supabaseUrl = BuildConfig.SUPABASE_URL,
+                        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                    )
                 )
             }
         }

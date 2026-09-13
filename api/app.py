@@ -1,7 +1,9 @@
 import hashlib
 import os
 import secrets
+import smtplib
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from uuid import uuid4
 
 import jwt
@@ -14,10 +16,42 @@ MAX_VALIDATION_ATTEMPTS = 5
 PERSONA_API_BASE_URL = "https://api.withpersona.com/api/v1"
 PERSONA_VERSION = "2023-01-05"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+FLAG_ALERT_RECIPIENT = "gilliamandrew22@gmail.com"
+NORA_SYSTEM_INSTRUCTIONS = """
+Nora is a medical assistant chatbot. Nora answers questions about health, symptoms, treatments, medications, and patient records only.
+
+Scope Rules:
+1. Answer medical questions only. This covers symptoms, conditions, treatments, medications, procedures, and general health guidance.
+2. Reject non medical questions. If a user asks about weather, sports, coding, entertainment, or any topic outside medicine, tell them Nora handles medical questions only. Redirect them back to their health needs.
+3. Use provided resources first. When a customer database or document is available, pull answers from that data before giving general medical information. Cite the specific record or field you used.
+4. Never guess patient data. If the database does not contain an answer, say so directly. Do not invent patient details, test results, or history.
+5. Stay within medical facts. Do not offer legal, financial, or personal life advice, even if the user connects it to a health topic.
+
+Tone and Style:
+1. Keep answers short and direct.
+2. Use plain language. Avoid medical jargon unless the user uses it first.
+3. State facts. Skip filler phrases and unnecessary caveats.
+4. Address the user directly with "you" and "your."
+
+Safety Rules:
+1. Tell users to contact a doctor or call emergency services for urgent symptoms or crisis situations.
+2. Do not diagnose. Describe possible causes and recommend professional evaluation.
+3. Do not recommend specific drug dosages beyond what a provided resource states.
+4. Flag any question that requires a licensed professional and direct the user to one.
+
+Redirect Script:
+When a question falls outside medicine, respond with a version of this line: "I handle medical questions only. Ask me about your symptoms, medications, or health records, and I will help."
+
+Data Handling:
+1. Treat all customer records as private. Do not share one customer's data with another.
+2. Reference only the fields relevant to the question asked.
+3. If asked to summarize a full record, give a factual summary without added interpretation.
+""".strip()
 
 
 def create_app():
+    load_local_env()
     app = Flask(__name__)
     config = BackendConfig.from_env()
 
@@ -308,13 +342,16 @@ def create_app():
             return jsonify({"error": "message is too long"}), 400
 
         patient_context = load_patient_ai_context(config, patient_id)
+        flagged = is_flagged_medical_question(message)
         answer = gemini_generate_health_answer(
             config=config,
             patient_context=patient_context,
             message=message,
         )
+        if flagged:
+            send_flag_alert(config, patient_id, message)
 
-        return jsonify({"answer": answer})
+        return jsonify({"answer": answer, "agent": "Nora", "flagged": flagged})
 
     return app
 
@@ -330,6 +367,11 @@ class BackendConfig:
         persona_inquiry_template_id,
         gemini_api_key,
         gemini_model,
+        smtp_host,
+        smtp_port,
+        smtp_username,
+        smtp_password,
+        smtp_from_email,
     ):
         self.supabase_url = supabase_url.rstrip("/")
         self.service_role_key = service_role_key
@@ -339,6 +381,11 @@ class BackendConfig:
         self.persona_inquiry_template_id = persona_inquiry_template_id
         self.gemini_api_key = gemini_api_key
         self.gemini_model = gemini_model or DEFAULT_GEMINI_MODEL
+        self.smtp_host = smtp_host
+        self.smtp_port = int(smtp_port or 587)
+        self.smtp_username = smtp_username
+        self.smtp_password = smtp_password
+        self.smtp_from_email = smtp_from_email or smtp_username
 
     @classmethod
     def from_env(cls):
@@ -351,6 +398,11 @@ class BackendConfig:
             persona_inquiry_template_id=os.environ.get("PERSONA_INQUIRY_TEMPLATE_ID"),
             gemini_api_key=os.environ.get("GEMINI_API_KEY"),
             gemini_model=os.environ.get("GEMINI_MODEL"),
+            smtp_host=os.environ.get("SMTP_HOST"),
+            smtp_port=os.environ.get("SMTP_PORT"),
+            smtp_username=os.environ.get("SMTP_USERNAME"),
+            smtp_password=os.environ.get("SMTP_PASSWORD"),
+            smtp_from_email=os.environ.get("SMTP_FROM_EMAIL"),
         )
 
 
@@ -480,14 +532,7 @@ def gemini_generate_health_answer(config, patient_context, message):
         "systemInstruction": {
             "parts": [
                 {
-                    "text": (
-                        "You are HealthBridge's patient helper for an elderly patient. "
-                        "Use only the provided patient record context. "
-                        "Give short, plain-language answers. "
-                        "Do not diagnose, prescribe, or claim emergency certainty. "
-                        "Tell the patient to contact their doctor for medical decisions, "
-                        "and to call emergency services for urgent symptoms."
-                    )
+                    "text": NORA_SYSTEM_INSTRUCTIONS
                 }
             ]
         },
@@ -506,7 +551,7 @@ def gemini_generate_health_answer(config, patient_context, message):
         ],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 450,
+            "maxOutputTokens": 2048,
         },
     }
     response = requests.post(
@@ -525,6 +570,60 @@ def gemini_generate_health_answer(config, patient_context, message):
     parts = candidates[0].get("content", {}).get("parts", [])
     answer = "\n".join(part.get("text", "") for part in parts).strip()
     return answer or "I could not create an answer right now. Please try again."
+
+
+def is_flagged_medical_question(message):
+    normalized = message.lower()
+    urgent_terms = [
+        "chest pain",
+        "can't breathe",
+        "cannot breathe",
+        "shortness of breath",
+        "stroke",
+        "suicide",
+        "overdose",
+        "severe bleeding",
+        "emergency",
+    ]
+    professional_terms = [
+        "diagnose",
+        "diagnosis",
+        "dosage",
+        "dose",
+        "prescribe",
+        "stop taking",
+        "change my medication",
+    ]
+    return any(term in normalized for term in urgent_terms + professional_terms)
+
+
+def send_flag_alert(config, patient_id, message):
+    if not config.smtp_host or not config.smtp_from_email:
+        print("Nora flag alert skipped because SMTP is not configured")
+        return
+
+    email = EmailMessage()
+    email["Subject"] = "Nora flagged medical question"
+    email["From"] = config.smtp_from_email
+    email["To"] = FLAG_ALERT_RECIPIENT
+    email.set_content(
+        "\n".join(
+            [
+                "Nora flagged a question that may require a licensed professional.",
+                f"Patient ID: {patient_id}",
+                f"Question: {message}",
+            ]
+        )
+    )
+
+    try:
+        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as smtp:
+            smtp.starttls()
+            if config.smtp_username and config.smtp_password:
+                smtp.login(config.smtp_username, config.smtp_password)
+            smtp.send_message(email)
+    except Exception as exc:
+        print(f"Nora flag alert failed: {exc}")
 
 
 def load_patient_ai_context(config, patient_record_id):
@@ -551,7 +650,7 @@ def load_patient_ai_context(config, patient_record_id):
     observations = supabase_select(
         config,
         "health_observations",
-        {"patient_record_id": f"eq.{patient_record_id}", "order": "created_at.desc", "limit": "12"},
+        {"patient_record_id": f"eq.{patient_record_id}", "order": "recorded_at.desc", "limit": "12"},
     )
 
     return "\n".join(
@@ -710,6 +809,24 @@ def required_env(name):
     return value
 
 
+def load_local_env():
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ[key] = value
+
+
 def read_upstream_error(response):
     try:
         data = response.json()
@@ -724,4 +841,4 @@ def read_upstream_error(response):
 
 
 if __name__ == "__main__":
-    create_app().run(debug=True)
+    create_app().run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
