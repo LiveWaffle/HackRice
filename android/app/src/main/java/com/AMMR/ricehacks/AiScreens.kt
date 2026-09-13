@@ -414,20 +414,36 @@ fun ActiveNoraSession(
                             val shouldTitleSession = turns.isEmpty()
                             val userTurn = AskNoraTurn(AskNoraSpeaker.User, text)
                             turns = turns + userTurn
-                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn)
+                            runCatching {
+                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn)
+                            }
                             if (shouldTitleSession) {
-                                askNoraRepository.updateSessionTitle(
-                                    patientSession.accessToken,
-                                    session.id,
-                                    titleFromMessage(text)
-                                )
+                                runCatching {
+                                    askNoraRepository.updateSessionTitle(
+                                        patientSession.accessToken,
+                                        session.id,
+                                        titleFromMessage(text)
+                                    )
+                                }
                             }
 
                             runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
                                 .onSuccess { response ->
                                     val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
                                     turns = turns + aiTurn
-                                    askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                    runCatching {
+                                        askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                    }
+                                }
+                                .onFailure { throwable ->
+                                    val message = throwable.message
+                                        ?.takeIf { it.isNotBlank() }
+                                        ?: "Nora could not respond right now. Check that the backend is running and configured."
+                                    val errorTurn = AskNoraTurn(
+                                        AskNoraSpeaker.Assistant,
+                                        "Nora could not respond: $message"
+                                    )
+                                    turns = turns + errorTurn
                                 }
                         }
                     }
