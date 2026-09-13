@@ -26,6 +26,8 @@ android {
             ?: providers.gradleProperty("PRESAGE_API_KEY").getOrNull()
             ?: providers.environmentVariable("PRESAGE_API_KEY").getOrNull()
             ?: ""
+        // ELEVENLABS_AGENT_ID is safe to keep in local.properties (client-side/public metadata).
+        // ELEVENLABS_API_KEY must stay server-side in Supabase Edge Function secrets, not in Android app config.
         val elevenLabsAgentId = localProperties.getProperty("ELEVENLABS_AGENT_ID")
             ?: providers.gradleProperty("ELEVENLABS_AGENT_ID").getOrNull()
             ?: providers.environmentVariable("ELEVENLABS_AGENT_ID").getOrNull()

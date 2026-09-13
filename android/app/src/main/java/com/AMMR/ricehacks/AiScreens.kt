@@ -37,10 +37,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-<<<<<<< Updated upstream
-=======
-import androidx.compose.material.icons.filled.Chat
->>>>>>> Stashed changes
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -70,10 +66,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-<<<<<<< Updated upstream
-import androidx.compose.runtime.mutableFloatStateOf
-=======
->>>>>>> Stashed changes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -199,7 +191,6 @@ fun NoraSessionList(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-<<<<<<< Updated upstream
             Card(
                 modifier = Modifier.weight(1f),
                 onClick = { onStartNew(AskNoraMode.Text) },
@@ -250,38 +241,7 @@ fun NoraSessionList(
         Spacer(Modifier.height(28.dp))
 
         Text(
-            text = "Conversations",
-=======
-            Button(
-                onClick = { onStartNew(AskNoraMode.Text) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Icon(Icons.Default.Chat, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("New Chat")
-            }
-            Button(
-                onClick = { onStartNew(AskNoraMode.Voice) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.secondary)
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Start Call")
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        Text(
             text = "Past Conversations",
->>>>>>> Stashed changes
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colorScheme.onBackground,

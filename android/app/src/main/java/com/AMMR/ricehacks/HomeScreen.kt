@@ -55,15 +55,11 @@ fun HomeTabContent(
             fontWeight = FontWeight.Bold
         )
         Text(
-<<<<<<< Updated upstream
             text = if (role == UserRole.Doctor) {
                 "Manage your patient visits and scans."
             } else {
                 "Welcome back. We'll keep this simple and take one step at a time."
             },
-=======
-            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Welcome back. We'll keep this simple and take one step at a time.",
->>>>>>> Stashed changes
             color = colorScheme.onSurfaceVariant,
             fontSize = 19.sp,
             lineHeight = 28.sp
@@ -108,11 +104,7 @@ fun HomeTabContent(
         }
 
         DashboardCard("Start a Presage scan") {
-<<<<<<< Updated upstream
             Text("Take a new scan to add today’s reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
-=======
-            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
->>>>>>> Stashed changes
             Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -163,7 +155,3 @@ private fun DashboardCard(title: String, content: @Composable ColumnScope.() -> 
         }
     }
 }
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
