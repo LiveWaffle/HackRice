@@ -8,11 +8,14 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
 
 data class AskNoraSession(
     val id: String,
     val initialMode: AskNoraMode,
     val createdAt: String,
+    val title: String,
+    val lastMessage: String? = null,
     val endedAt: String? = null
 )
 
@@ -28,6 +31,7 @@ enum class AskNoraSpeaker { User, Assistant }
 interface AskNoraRepository {
     suspend fun createSession(accessToken: String, initialMode: AskNoraMode): AskNoraSession
     suspend fun appendTurn(accessToken: String, sessionId: String, turn: AskNoraTurn)
+    suspend fun updateSessionTitle(accessToken: String, sessionId: String, title: String)
     suspend fun endSession(accessToken: String, sessionId: String)
     suspend fun fetchSessions(accessToken: String): List<AskNoraSession>
     suspend fun fetchTurns(accessToken: String, sessionId: String): List<AskNoraTurn>
@@ -38,44 +42,65 @@ class SupabaseAskNoraRepository(
     private val publishableKey: String,
 ) : AskNoraRepository {
     override suspend fun createSession(accessToken: String, initialMode: AskNoraMode): AskNoraSession {
-        val result = request("/rest/v1/nora_sessions", "POST", accessToken, JSONObject()
-            .put("mode", initialMode.name.lowercase()), returnRepresentation = true)
+        val defaultTitle = if (initialMode == AskNoraMode.Voice) "New voice call" else "New chat"
+        val result = request("/rest/v1/ask_nora_sessions", "POST", accessToken, JSONObject()
+            .put("initial_mode", initialMode.name.lowercase())
+            .put("title", defaultTitle), returnRepresentation = true)
         val row = JSONArray(result).getJSONObject(0)
         return AskNoraSession(
             id = row.getString("id"),
             initialMode = initialMode,
-            createdAt = row.getString("created_at")
+            createdAt = row.getString("created_at"),
+            title = row.optString("title").ifBlank { defaultTitle }
         )
     }
 
     override suspend fun appendTurn(accessToken: String, sessionId: String, turn: AskNoraTurn) {
-        request("/rest/v1/nora_turns", "POST", accessToken, JSONObject()
+        val nextTurnIndex = fetchTurnCount(accessToken, sessionId)
+        request("/rest/v1/ask_nora_turns", "POST", accessToken, JSONObject()
             .put("session_id", sessionId)
+            .put("turn_index", nextTurnIndex)
             .put("speaker", turn.speaker.name.lowercase())
+            .put("modality", "text")
             .put("text", turn.text), returnRepresentation = false)
     }
 
+    override suspend fun updateSessionTitle(accessToken: String, sessionId: String, title: String) {
+        request(
+            "/rest/v1/ask_nora_sessions?id=eq.$sessionId",
+            "PATCH",
+            accessToken,
+            JSONObject().put("title", title),
+            returnRepresentation = false
+        )
+    }
+
     override suspend fun endSession(accessToken: String, sessionId: String) {
-        request("/rest/v1/nora_sessions?id=eq.$sessionId", "PATCH", accessToken,
-            JSONObject().put("ended_at", "now()"), returnRepresentation = false)
+        request("/rest/v1/ask_nora_sessions?id=eq.$sessionId", "PATCH", accessToken,
+            JSONObject().put("ended_at", Instant.now().toString()), returnRepresentation = false)
     }
 
     override suspend fun fetchSessions(accessToken: String): List<AskNoraSession> {
-        val result = request("/rest/v1/nora_sessions?select=*&order=created_at.desc", "GET", accessToken, null, returnRepresentation = true)
+        val result = request("/rest/v1/ask_nora_sessions?select=*&order=created_at.desc", "GET", accessToken, null, returnRepresentation = true)
         val array = JSONArray(result)
         return List(array.length()) { i ->
             val row = array.getJSONObject(i)
+            val mode = if (row.getString("initial_mode") == "voice") AskNoraMode.Voice else AskNoraMode.Text
             AskNoraSession(
                 id = row.getString("id"),
-                initialMode = if (row.getString("mode") == "voice") AskNoraMode.Voice else AskNoraMode.Text,
+                initialMode = mode,
                 createdAt = row.getString("created_at"),
+                title = row.optString("title").ifBlank {
+                    if (mode == AskNoraMode.Voice) "Voice call" else "Text chat"
+                },
+                lastMessage = fetchLastTurn(accessToken, row.getString("id"))?.text,
                 endedAt = row.optString("ended_at").takeIf { it.isNotBlank() }
             )
         }
     }
 
     override suspend fun fetchTurns(accessToken: String, sessionId: String): List<AskNoraTurn> {
-        val result = request("/rest/v1/nora_turns?session_id=eq.$sessionId&order=created_at.asc", "GET", accessToken, null, returnRepresentation = true)
+        val result = request("/rest/v1/ask_nora_turns?session_id=eq.$sessionId&order=turn_index.asc", "GET", accessToken, null, returnRepresentation = true)
         val array = JSONArray(result)
         return List(array.length()) { i ->
             val row = array.getJSONObject(i)
@@ -85,6 +110,36 @@ class SupabaseAskNoraRepository(
                 createdAt = row.getString("created_at")
             )
         }
+    }
+
+    private suspend fun fetchTurnCount(accessToken: String, sessionId: String): Int {
+        val result = request(
+            "/rest/v1/ask_nora_turns?session_id=eq.$sessionId&select=id",
+            "GET",
+            accessToken,
+            null,
+            returnRepresentation = true
+        )
+        return JSONArray(result).length()
+    }
+
+    private suspend fun fetchLastTurn(accessToken: String, sessionId: String): AskNoraTurn? {
+        val result = request(
+            "/rest/v1/ask_nora_turns?session_id=eq.$sessionId&select=speaker,text,created_at&order=turn_index.desc&limit=1",
+            "GET",
+            accessToken,
+            null,
+            returnRepresentation = true
+        )
+        val array = JSONArray(result)
+        if (array.length() == 0) return null
+
+        val row = array.getJSONObject(0)
+        return AskNoraTurn(
+            speaker = if (row.getString("speaker") == "assistant") AskNoraSpeaker.Assistant else AskNoraSpeaker.User,
+            text = row.getString("text"),
+            createdAt = row.optString("created_at").takeIf { it.isNotBlank() }
+        )
     }
 
     private suspend fun request(path: String, method: String, token: String, body: JSONObject?, returnRepresentation: Boolean): String = withContext(Dispatchers.IO) {

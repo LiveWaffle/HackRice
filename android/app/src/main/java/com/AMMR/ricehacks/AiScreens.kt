@@ -20,10 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-<<<<<<< Updated upstream
 import androidx.compose.foundation.layout.height
-=======
->>>>>>> Stashed changes
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,23 +33,15 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
-<<<<<<< Updated upstream
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Chat
-=======
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
->>>>>>> Stashed changes
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-<<<<<<< Updated upstream
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.ButtonDefaults
@@ -61,34 +50,22 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-=======
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
->>>>>>> Stashed changes
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-<<<<<<< Updated upstream
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-=======
-import androidx.compose.material3.Surface
->>>>>>> Stashed changes
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-<<<<<<< Updated upstream
 import androidx.compose.runtime.mutableFloatStateOf
-=======
->>>>>>> Stashed changes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -125,12 +102,18 @@ fun AskNoraScreen(
     var activeSession by remember { mutableStateOf<AskNoraSession?>(null) }
     var sessions by remember { mutableStateOf<List<AskNoraSession>>(emptyList()) }
     var isLoadingSessions by remember { mutableStateOf(false) }
+    var isCreatingSession by remember { mutableStateOf(false) }
+    var sessionError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         isLoadingSessions = true
         runCatching { askNoraRepository.fetchSessions(patientSession.accessToken) }
-            .onSuccess { sessions = it }
+            .onSuccess {
+                sessions = it
+                sessionError = null
+            }
+            .onFailure { sessionError = it.message ?: "Could not load conversations." }
         isLoadingSessions = false
     }
 
@@ -153,10 +136,19 @@ fun AskNoraScreen(
         NoraSessionList(
             sessions = sessions,
             isLoading = isLoadingSessions,
+            isCreating = isCreatingSession,
+            errorMessage = sessionError,
             onStartNew = { mode ->
                 scope.launch {
+                    isCreatingSession = true
+                    sessionError = null
                     runCatching { askNoraRepository.createSession(patientSession.accessToken, mode) }
-                        .onSuccess { activeSession = it }
+                        .onSuccess { session ->
+                            sessions = listOf(session) + sessions
+                            activeSession = session
+                        }
+                        .onFailure { sessionError = it.message ?: "Could not create a new conversation." }
+                    isCreatingSession = false
                 }
             },
             onSelectSession = { activeSession = it }
@@ -169,12 +161,10 @@ fun AskNoraScreen(
 fun NoraSessionList(
     sessions: List<AskNoraSession>,
     isLoading: Boolean,
+    isCreating: Boolean,
+    errorMessage: String?,
     onStartNew: (AskNoraMode) -> Unit,
-<<<<<<< Updated upstream
-    onSelectSession: (AskNoraSession) -> Unit
-=======
     onSelectSession: (AskNoraSession) -> Unit,
->>>>>>> Stashed changes
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -200,26 +190,6 @@ fun NoraSessionList(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-<<<<<<< Updated upstream
-            androidx.compose.material3.Button(
-                onClick = { onStartNew(AskNoraMode.Text) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Icon(Icons.Default.Chat, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("New Chat")
-            }
-            androidx.compose.material3.Button(
-                onClick = { onStartNew(AskNoraMode.Voice) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.secondary)
-=======
             Card(
                 modifier = Modifier.weight(1f),
                 onClick = { onStartNew(AskNoraMode.Text) },
@@ -242,7 +212,6 @@ fun NoraSessionList(
                 modifier = Modifier.weight(1f),
                 onClick = { onStartNew(AskNoraMode.Voice) },
                 colors = CardDefaults.cardColors(containerColor = colorScheme.secondaryContainer)
->>>>>>> Stashed changes
             ) {
                 Row(
                     modifier = Modifier
@@ -258,58 +227,100 @@ fun NoraSessionList(
             }
         }
 
-<<<<<<< Updated upstream
-        Spacer(Modifier.height(32.dp))
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = colorScheme.error,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
 
         Text(
-            text = "Past Conversations",
-=======
-        Text(
-            text = "Past conversations",
->>>>>>> Stashed changes
+            text = "Conversations",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colorScheme.onBackground,
             modifier = Modifier.padding(top = 8.dp)
         )
 
-        if (isLoading) {
-            Text("Loading sessions...", color = colorScheme.onSurfaceVariant)
+        if (isLoading || isCreating) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         } else if (sessions.isEmpty()) {
             Text("No past conversations yet.", color = colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(sessions) { session ->
-                    Card(
-                        onClick = { onSelectSession(session) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainer)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (session.initialMode == AskNoraMode.Voice) Icons.Default.Call else Icons.AutoMirrored.Filled.Chat,
-                                contentDescription = null,
-                                tint = colorScheme.primary
-                            )
-                            Spacer(Modifier.width(16.dp))
-                            Column {
-                                Text(
-                                    text = if (session.initialMode == AskNoraMode.Voice) "Voice Call" else "Text Chat",
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = formatDate(session.createdAt),
-                                    fontSize = 14.sp,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    NoraConversationRow(
+                        session = session,
+                        onClick = { onSelectSession(session) }
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NoraConversationRow(
+    session: AskNoraSession,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val modeLabel = if (session.initialMode == AskNoraMode.Voice) "Voice" else "Chat"
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainer),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                color = colorScheme.secondaryContainer,
+                shape = CircleShape
+            ) {
+                Icon(
+                    imageVector = if (session.initialMode == AskNoraMode.Voice) Icons.Default.Call else Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    tint = colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = session.title,
+                    color = colorScheme.onSurface,
+                    fontSize = 17.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    text = session.lastMessage ?: "$modeLabel started ${formatDate(session.createdAt)}",
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 1
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = modeLabel,
+                color = colorScheme.primary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -400,9 +411,17 @@ fun ActiveNoraSession(
                     turns = turns,
                     onSend = { text ->
                         scope.launch {
+                            val shouldTitleSession = turns.isEmpty()
                             val userTurn = AskNoraTurn(AskNoraSpeaker.User, text)
                             turns = turns + userTurn
                             askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn)
+                            if (shouldTitleSession) {
+                                askNoraRepository.updateSessionTitle(
+                                    patientSession.accessToken,
+                                    session.id,
+                                    titleFromMessage(text)
+                                )
+                            }
 
                             runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
                                 .onSuccess { response ->
@@ -578,13 +597,9 @@ fun VoiceCallView(
     ) {
         if (showTranscript) {
             val listState = rememberLazyListState()
-<<<<<<< Updated upstream
-            LaunchedEffect(turns.size) { if (turns.isNotEmpty()) listState.animateScrollToItem(turns.size - 1) }
-=======
             LaunchedEffect(turns.size) {
                 if (turns.isNotEmpty()) listState.animateScrollToItem(turns.size - 1)
             }
->>>>>>> Stashed changes
 
             LazyColumn(
                 state = listState,
@@ -720,6 +735,11 @@ fun VoiceVisualizer(isActive: Boolean) {
     }
 }
 
+private fun titleFromMessage(message: String): String {
+    val cleaned = message.trim().replace(Regex("\\s+"), " ")
+    return if (cleaned.length <= 42) cleaned else "${cleaned.take(39)}..."
+}
+
 private fun formatDate(dateString: String): String {
     return try {
         val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
@@ -764,13 +784,8 @@ fun AiSettingsPreferences() {
 
     PreferenceControlCard(
         title = "Language options",
-<<<<<<< Updated upstream
         detail = "Choose the language Nora uses for AI answers.",
         icon = Icons.Filled.Translate
-=======
-        detail = "Choose the language Cara uses for AI answers.",
-        icon = Icons.Default.AutoAwesome
->>>>>>> Stashed changes
     ) {
         ChipColumn(
             options = languages,
