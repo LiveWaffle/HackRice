@@ -108,6 +108,7 @@ fun AskNoraScreen(
     patientSession: AuthenticatedUser,
     aiRepository: HealthAiRepository,
     askNoraRepository: AskNoraRepository,
+    defaultVoiceLanguageCode: String = "en",
 ) {
     var activeSession by remember { mutableStateOf<AskNoraSession?>(null) }
     var sessions by remember { mutableStateOf<List<AskNoraSession>>(emptyList()) }
@@ -134,6 +135,7 @@ fun AskNoraScreen(
             patientSession = patientSession,
             aiRepository = aiRepository,
             askNoraRepository = askNoraRepository,
+            defaultVoiceLanguageCode = defaultVoiceLanguageCode,
             onClose = {
                 activeSession = null
                 scope.launch {
@@ -357,11 +359,13 @@ fun ActiveNoraSession(
     patientSession: AuthenticatedUser,
     aiRepository: HealthAiRepository,
     askNoraRepository: AskNoraRepository,
+    defaultVoiceLanguageCode: String = "en",
     onClose: () -> Unit,
 ) {
     var mode by remember { mutableStateOf(session.initialMode) }
     var turns by remember { mutableStateOf<List<AskNoraTurn>>(emptyList()) }
     var sessionSummary by remember { mutableStateOf<String?>(null) }
+    val voiceLanguageCode = defaultVoiceLanguageCode.takeIf { it.isNotBlank() } ?: "en"
     var currentVoiceState by remember { mutableStateOf(NoraVoiceState.Listening) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -374,6 +378,14 @@ fun ActiveNoraSession(
     var showVoiceSetupOnce by remember { mutableStateOf(true) }
     var isStartingVoiceCall by remember { mutableStateOf(false) }
     val isSpeakingVoice = currentVoiceState == NoraVoiceState.Speaking
+    val staticNoraResponseForUserMessage: (String) -> String? = { message ->
+        val normalized = message.trim()
+        if (normalized.equals("I have a new symptom to report", ignoreCase = true)) {
+            "Thanks for telling me. Just so you know, I'm not a doctor and can't diagnose anything — but I can help you figure out what kind of care might make sense and help you put it into words for your provider.\n\nWhat's going on? And roughly how long has it been happening?"
+        } else {
+            null
+        }
+    }
 
     val saveTextSessionSummaryIfNeeded: suspend () -> Unit = {
         if (mode == AskNoraMode.Text) {
@@ -431,7 +443,7 @@ fun ActiveNoraSession(
                     voiceService.startIntake(
                         context = context,
                         accessToken = patientSession.accessToken,
-                        language = "en",
+                        language = voiceLanguageCode,
                         patientName = patientSession.email?.substringBefore('@') ?: "Patient",
                         patientId = patientSession.userId,
                         onTranscript = { text ->
@@ -581,26 +593,36 @@ fun ActiveNoraSession(
                                 }
 
                                 isNoraTyping = true
-                                runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
-                                    .onSuccess { response ->
-                                        isNoraTyping = false
-                                        val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
-                                        turns = turns + aiTurn
-                                        runCatching {
-                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                val staticReply = staticNoraResponseForUserMessage(text)
+                                if (staticReply != null) {
+                                    isNoraTyping = false
+                                    val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, staticReply)
+                                    turns = turns + aiTurn
+                                    runCatching {
+                                        askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                    }
+                                } else {
+                                    runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
+                                        .onSuccess { response ->
+                                            isNoraTyping = false
+                                            val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
+                                            turns = turns + aiTurn
+                                            runCatching {
+                                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                            }
                                         }
-                                    }
-                                    .onFailure { throwable ->
-                                        isNoraTyping = false
-                                        val message = throwable.message
-                                            ?.takeIf { it.isNotBlank() }
-                                            ?: "Nora could not respond right now. Check that the backend is running and configured."
-                                        val errorTurn = AskNoraTurn(
-                                            AskNoraSpeaker.Assistant,
-                                            "Nora could not respond: $message"
-                                        )
-                                        turns = turns + errorTurn
-                                    }
+                                        .onFailure { throwable ->
+                                            isNoraTyping = false
+                                            val message = throwable.message
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?: "Nora could not respond right now. Check that the backend is running and configured."
+                                            val errorTurn = AskNoraTurn(
+                                                AskNoraSpeaker.Assistant,
+                                                "Nora could not respond: $message"
+                                            )
+                                            turns = turns + errorTurn
+                                        }
+                                }
                             }
                         },
                         onQuickReply = { text ->
@@ -609,25 +631,35 @@ fun ActiveNoraSession(
                                 turns = turns + userTurn
                                 runCatching { askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn) }
                                 isNoraTyping = true
-                                runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
-                                    .onSuccess { response ->
-                                        isNoraTyping = false
-                                        val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
-                                        turns = turns + aiTurn
-                                        runCatching {
-                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                val staticReply = staticNoraResponseForUserMessage(text)
+                                if (staticReply != null) {
+                                    isNoraTyping = false
+                                    val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, staticReply)
+                                    turns = turns + aiTurn
+                                    runCatching {
+                                        askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                    }
+                                } else {
+                                    runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
+                                        .onSuccess { response ->
+                                            isNoraTyping = false
+                                            val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
+                                            turns = turns + aiTurn
+                                            runCatching {
+                                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                            }
                                         }
-                                    }
-                                    .onFailure { throwable ->
-                                        isNoraTyping = false
-                                        val message = throwable.message
-                                            ?.takeIf { it.isNotBlank() }
-                                            ?: "Nora could not respond right now. Check that the backend is running and configured."
-                                        turns = turns + AskNoraTurn(
-                                            AskNoraSpeaker.Assistant,
-                                            "Nora could not respond: $message"
-                                        )
-                                    }
+                                        .onFailure { throwable ->
+                                            isNoraTyping = false
+                                            val message = throwable.message
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?: "Nora could not respond right now. Check that the backend is running and configured."
+                                            turns = turns + AskNoraTurn(
+                                                AskNoraSpeaker.Assistant,
+                                                "Nora could not respond: $message"
+                                            )
+                                        }
+                                }
                             }
                         }
                     )
@@ -669,7 +701,7 @@ fun ActiveNoraSession(
                                                     voiceService.startIntake(
                                                         context = context,
                                                         accessToken = patientSession.accessToken,
-                                                        language = "en",
+                                                        language = voiceLanguageCode,
                                                         patientName = patientSession.email?.substringBefore('@') ?: "Patient",
                                                         patientId = patientSession.userId,
                                                         onTranscript = { text ->
@@ -761,7 +793,7 @@ fun ActiveNoraSession(
                                         voiceService.startIntake(
                                             context = context,
                                             accessToken = patientSession.accessToken,
-                                            language = "en",
+                                            language = voiceLanguageCode,
                                             patientName = patientSession.email?.substringBefore('@') ?: "Patient",
                                             patientId = patientSession.userId,
                                             onTranscript = { text ->
@@ -1299,53 +1331,6 @@ data class AiFrameworkStep(
     val detail: String,
     val icon: ImageVector,
 )
-
-@Composable
-fun AiSettingsPreferences() {
-    var volume by remember { mutableStateOf(0.75f) }
-    var selectedLanguage by remember { mutableStateOf("English") }
-    var simpleAnswers by remember { mutableStateOf(true) }
-    var readAnswersAloud by remember { mutableStateOf(true) }
-    val languages = listOf("English")
-
-    SettingsValueRow("Text size", "Large")
-    SettingsValueRow("Language", selectedLanguage)
-
-    PreferenceControlCard(
-        title = "Voice volume",
-        detail = "${(volume * 100).toInt()} percent",
-        icon = Icons.Default.Call
-    ) {
-        Slider(
-            value = volume,
-            onValueChange = { volume = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-
-    PreferenceControlCard(
-        title = "Language options",
-        detail = "Default English voice is active for now.",
-        icon = Icons.Filled.Translate
-    ) {
-        ChipColumn(
-            options = languages,
-            selected = selectedLanguage,
-            onSelected = { selectedLanguage = it }
-        )
-    }
-
-    AiToggleRow(
-        label = "Use simple AI answers",
-        checked = simpleAnswers,
-        onCheckedChange = { simpleAnswers = it }
-    )
-    AiToggleRow(
-        label = "Read AI answers aloud",
-        checked = readAnswersAloud,
-        onCheckedChange = { readAnswersAloud = it }
-    )
-}
 
 @Composable
 private fun PreferenceControlCard(

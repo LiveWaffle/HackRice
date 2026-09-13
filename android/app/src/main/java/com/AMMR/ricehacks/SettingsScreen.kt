@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,7 +45,9 @@ fun SettingsContent(
     onSelectPage: (SettingsPage) -> Unit,
     onBack: () -> Unit,
     darkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit
+    onDarkThemeChange: (Boolean) -> Unit,
+    selectedVoiceLanguageCode: String = "en",
+    onVoiceLanguageChanged: (String) -> Unit = {}
 ) {
     if (selectedPage == null) {
         SettingsListScreen(onSelectPage = {
@@ -59,7 +62,9 @@ fun SettingsContent(
                 onBack()
             },
             darkTheme = darkTheme,
-            onDarkThemeChange = onDarkThemeChange
+            onDarkThemeChange = onDarkThemeChange,
+            selectedVoiceLanguageCode = selectedVoiceLanguageCode,
+            onVoiceLanguageChanged = onVoiceLanguageChanged
         )
     }
 }
@@ -178,7 +183,9 @@ private fun SettingsDetailScreen(
     page: SettingsPage,
     onBack: () -> Unit,
     darkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit
+    onDarkThemeChange: (Boolean) -> Unit,
+    selectedVoiceLanguageCode: String = "en",
+    onVoiceLanguageChanged: (String) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -230,7 +237,13 @@ private fun SettingsDetailScreen(
             colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
             shape = MaterialTheme.shapes.extraLarge
         ) {
-            SettingsDetailFields(page = page, darkTheme = darkTheme, onDarkThemeChange = onDarkThemeChange)
+            SettingsDetailFields(
+                page = page,
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+                selectedVoiceLanguageCode = selectedVoiceLanguageCode,
+                onVoiceLanguageChanged = onVoiceLanguageChanged
+            )
         }
     }
 }
@@ -239,7 +252,9 @@ private fun SettingsDetailScreen(
 private fun SettingsDetailFields(
     page: SettingsPage,
     darkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit
+    onDarkThemeChange: (Boolean) -> Unit,
+    selectedVoiceLanguageCode: String = "en",
+    onVoiceLanguageChanged: (String) -> Unit = {}
 ) {
     Column(
         modifier = Modifier.padding(20.dp),
@@ -254,7 +269,10 @@ private fun SettingsDetailFields(
                 SettingsActionButton("Save profile")
             }
             SettingsPage.Preferences -> {
-                AiSettingsPreferences()
+                AiSettingsPreferences(
+                    selectedLanguageCode = selectedVoiceLanguageCode,
+                    onLanguageSelected = onVoiceLanguageChanged
+                )
                 ControlledSettingsToggleRow("Use dark mode", darkTheme, onDarkThemeChange)
                 SettingsToggleRow("High contrast mode", false)
                 SettingsToggleRow("Use simple visit summaries", true)
@@ -285,11 +303,11 @@ private fun SettingsDetailFields(
                 SettingsActionButton("Review access history")
             }
             SettingsPage.About -> {
-                SettingsValueRow("App", "Nora")
+                SettingsValueRow("App", "Relay")
                 SettingsValueRow("Version", "1.0")
                 SettingsValueRow("Project", "HackRice 2026")
                 Text(
-                    text = "Nora helps patients organize and share health information. It does not replace medical advice from a doctor.",
+                    text = "Relay helps patients organize and share health information. It does not replace medical advice from a doctor.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 17.sp,
                     lineHeight = 25.sp
@@ -297,9 +315,47 @@ private fun SettingsDetailFields(
             }
             SettingsPage.HelpSupport -> {
                 SettingsValueRow("Support hours", "8 AM to 8 PM")
-                SettingsValueRow("Email", "support@nora.local")
+                SettingsValueRow("Email", "support@relay.local")
                 SettingsValueRow("Phone help", "(555) 010-1040")
                 SettingsActionButton("Contact support")
+            }
+        }
+    }
+}
+
+@Composable
+fun AiSettingsPreferences(
+    selectedLanguageCode: String = "en",
+    onLanguageSelected: (String) -> Unit = {}
+) {
+    val languageOptions = listOf(
+        "English" to "en",
+        "Español" to "es",
+        "中文" to "zh"
+    )
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Voice language",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 20.sp,
+            lineHeight = 26.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            languageOptions.forEach { (label, code) ->
+                FilterChip(
+                    selected = selectedLanguageCode == code,
+                    onClick = { onLanguageSelected(code) },
+                    label = { Text(label) }
+                )
             }
         }
     }

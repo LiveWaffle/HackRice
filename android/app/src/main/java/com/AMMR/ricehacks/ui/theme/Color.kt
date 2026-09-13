@@ -2,10 +2,25 @@ package com.AMMR.ricehacks.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val HealthBlue80 = Color(0xFF9DE7DF)
-val HealthGray80 = Color(0xFFB9CBC7)
-val HealthGreen80 = Color(0xFFA7D8B6)
+// Letters palette — exact spec tokens.
+val Obsidian = Color(0xFF070709)
+val PaperWhite = Color(0xFFFFFFFF)
+val CloudGray = Color(0xFFF5F5F5)
+val SkyTint = Color(0xFFD7E6F5)
+val Charcoal = Color(0xFF60606C)
+val Slate = Color(0xFF8B8B8B)
+val Ink = Color(0xFF151515)
+val SurgicalBlue = Color(0xFF2597D0)
 
-val HealthBlue40 = Color(0xFF087D90)
-val HealthGray40 = Color(0xFF52646D)
-val HealthGreen40 = Color(0xFF3F8F5F)
+val SkyGradientStart = Color(0xFF779BC1)
+val SkyGradientMiddle = Color(0xFF9ABFDA)
+val SkyGradientEnd = Color(0xFFCBDCEC)
+
+// Convenience aliases for the current app's Material theme usage.
+val HealthBlue80 = SurgicalBlue
+val HealthGray80 = CloudGray
+val HealthGreen80 = SkyTint
+
+val HealthBlue40 = SurgicalBlue
+val HealthGray40 = Charcoal
+val HealthGreen40 = SkyTint

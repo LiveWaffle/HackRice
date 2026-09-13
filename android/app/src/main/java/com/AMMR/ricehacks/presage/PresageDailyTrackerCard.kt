@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +32,7 @@ import kotlin.math.roundToInt
 fun PresageDailyTrackerCard(
     accessToken: String,
     presageVitalsRepository: PresageVitalsRepository,
+    onStartScan: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var observations by remember {
@@ -91,9 +94,25 @@ fun PresageDailyTrackerCard(
                     color = MaterialTheme.colorScheme.error
                 )
 
-                pulse == null && breathing == null -> Text(
-                    text = "No Presage reading saved today."
-                )
+                pulse == null && breathing == null -> {
+                    Text(
+                        text = "Health scan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Take a new scan to add today's reading to your health trends.",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Button(
+                        onClick = onStartScan,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Text("Take a Health Vitals Scan")
+                    }
+                }
 
                 else -> {
                     VitalRow(

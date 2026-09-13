@@ -1,5 +1,6 @@
 package com.AMMR.ricehacks
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,6 +51,7 @@ fun LoggedInHomeScreen(
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
     var selectedVoiceLanguageCode by remember { mutableStateOf("en") }
+    var showingMargaretRecord by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
         PresageVitalsRepository(
@@ -57,7 +59,6 @@ fun LoggedInHomeScreen(
             publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         )
     }
-    >>>>>>> main
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -69,7 +70,7 @@ fun LoggedInHomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                            .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -167,6 +168,8 @@ fun LoggedInHomeScreen(
                                     accessToken = patientSession.accessToken,
                                     reading = reading
                                 )
+                            }.onSuccess {
+                                selectedDestination = AppDestination.Home
                             }
                         }
                     }

@@ -53,7 +53,7 @@ fun HomeTabContent(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Text(
-            text = "${timeOfDayGreeting()} $patientName",
+            text = "Good Morning Margaret!",
             color = colorScheme.onBackground,
             fontSize = 32.sp,
             lineHeight = 40.sp,
@@ -72,7 +72,8 @@ fun HomeTabContent(
 
         PresageDailyTrackerCard(
             accessToken = accessToken,
-            presageVitalsRepository = presageVitalsRepository
+            presageVitalsRepository = presageVitalsRepository,
+            onStartScan = onStartScan
         )
 
         if (role == UserRole.Doctor) {
@@ -98,17 +99,6 @@ fun HomeTabContent(
             }
         }
 
-        HomeActionCard(
-            title = "Share with a doctor",
-            message = "Choose what a provider can see before a visit.",
-            buttonText = "Share safely"
-        )
-        HomeActionCard(
-            title = "Upcoming care",
-            message = "Keep appointment notes and questions in one place.",
-            buttonText = "View care"
-        )
-
         if (role == UserRole.Patient) {
             DashboardCard("Health trends") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -120,12 +110,6 @@ fun HomeTabContent(
                 Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
             }
 
-            DashboardCard("Start a Presage scan") {
-                Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
-                Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
         }
 
         DashboardCard("Upcoming care") {

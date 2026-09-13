@@ -5,13 +5,12 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -50,6 +50,8 @@ fun PresageScanScreen(
     var latestPulse by remember { mutableStateOf<VitalMetric?>(null) }
     var latestBreathing by remember { mutableStateOf<VitalMetric?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var hasStoppedScan by remember { mutableStateOf(false) }
+    val hasPresageKey = controller.hasApiKey()
 
     LaunchedEffect(metrics) {
         metrics?.cardio?.pulseRateList
@@ -80,15 +82,19 @@ fun PresageScanScreen(
     }
 
     val startScan: () -> Unit = {
-        latestPulse = null
-        latestBreathing = null
-        errorMessage = null
+        if (!controller.hasApiKey()) {
+            errorMessage = "Presage is not configured. Add PRESAGE_API_KEY in local.properties or your build environment."
+        } else {
+            latestPulse = null
+            latestBreathing = null
+            errorMessage = null
 
-        scope.launch {
-            runCatching {
-                controller.start()
-            }.onFailure {
-                errorMessage = it.message ?: "Unable to start the camera."
+            scope.launch {
+                runCatching {
+                    controller.start()
+                }.onFailure {
+                    errorMessage = it.message ?: "Unable to start the camera."
+                }
             }
         }
     }
@@ -111,33 +117,44 @@ fun PresageScanScreen(
         latestPulse?.stable == true &&
             latestBreathing?.stable == true
 
+    val showReviewActions = !scanIsRunning && hasStoppedScan && readingIsUsable
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Health scan",
-            style = MaterialTheme.typography.headlineLarge
+            text = "Health Vitals Scan",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
         )
 
         Text(
             text = "Keep your face and upper chest visible, remain still, and avoid talking."
         )
 
+        if (!hasPresageKey) {
+            Text(
+                text = "Presage is not configured yet. Add PRESAGE_API_KEY to the Android build config to enable camera-based vitals scanning.",
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
         AndroidView(
             factory = { previewContext ->
                 PreviewView(previewContext).apply {
                     scaleType = PreviewView.ScaleType.FILL_CENTER
                     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    controller.configure(this)
+                    if (controller.hasApiKey()) {
+                        controller.configure(this)
+                    }
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(360.dp)
+                .aspectRatio(1f)
         )
 
         Text(
@@ -169,7 +186,10 @@ fun PresageScanScreen(
 
         Button(
             onClick = {
-                if (scanIsRunning) {
+                if (!controller.hasApiKey()) {
+                    errorMessage = "Presage is not configured. Add PRESAGE_API_KEY in local.properties or your build environment."
+                } else if (scanIsRunning) {
+                    hasStoppedScan = true
                     scope.launch {
                         runCatching { controller.stop() }
                     }
@@ -179,36 +199,63 @@ fun PresageScanScreen(
                         Manifest.permission.CAMERA
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
+                    hasStoppedScan = false
                     startScan()
                 } else {
                     permissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             },
-            enabled = processingStatus != ProcessingStatus.STOPPING,
+            enabled = processingStatus != ProcessingStatus.STOPPING && hasPresageKey,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (scanIsRunning) "Stop scan" else "Start scan")
         }
 
-        OutlinedButton(
-            onClick = {
-                onReadingReady(
-                    VitalsReading(
-                        capturedAtMillis = System.currentTimeMillis(),
-                        pulseRateBpm = latestPulse,
-                        breathingRatePerMinute = latestBreathing,
-                        validationCode = validationStatus?.code?.name ?: "UNKNOWN"
-                    )
-                )
-            },
-            enabled = readingIsUsable,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Use this reading")
+        if (showReviewActions) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        hasStoppedScan = false
+                        latestPulse = null
+                        latestBreathing = null
+                        errorMessage = null
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+
+                Button(
+                    onClick = {
+                        onReadingReady(
+                            VitalsReading(
+                                capturedAtMillis = System.currentTimeMillis(),
+                                pulseRateBpm = latestPulse,
+                                breathingRatePerMinute = latestBreathing,
+                                validationCode = validationStatus?.code?.name ?: "UNKNOWN"
+                            )
+                        )
+                        hasStoppedScan = false
+                        latestPulse = null
+                        latestBreathing = null
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Save Health Reading")
+                }
+            }
         }
 
         Text(
             text = "Wellness information only. This is not a medical diagnosis."
+        )
+        Text(
+            text = "This feature is meant for wellness tracking and should not be used to diagnose, treat, or replace medical advice from a licensed clinician.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

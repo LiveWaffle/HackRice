@@ -50,9 +50,6 @@ import kotlinx.coroutines.launch
 private const val DEMO_PATIENT_NAME = "Margaret Chen"
 private const val DEMO_PATIENT_EMAIL = "gilliamandrew22@gmail.com"
 private const val DEMO_PATIENT_PASSWORD = "HealthBridge1943!"
-private const val EMPTY_TEST_PATIENT_NAME = "No History Test"
-private const val EMPTY_TEST_PATIENT_EMAIL = "gilliamandrew22+empty@gmail.com"
-private const val EMPTY_TEST_PATIENT_PASSWORD = "HealthBridgeEmpty1!"
 
 private data class DemoPatientLogin(
     val name: String,
@@ -61,9 +58,7 @@ private data class DemoPatientLogin(
 )
 
 private val demoPatientLogins = listOf(
-    DemoPatientLogin(DEMO_PATIENT_NAME, DEMO_PATIENT_EMAIL, DEMO_PATIENT_PASSWORD),
-    DemoPatientLogin(EMPTY_TEST_PATIENT_NAME, EMPTY_TEST_PATIENT_EMAIL, EMPTY_TEST_PATIENT_PASSWORD),
-    DemoPatientLogin("Dr. Alvarez (Demo)", "doctor.alvarez@example.com", "HealthBridge1943!")
+    DemoPatientLogin(DEMO_PATIENT_NAME, DEMO_PATIENT_EMAIL, DEMO_PATIENT_PASSWORD)
 )
 
 @Composable
@@ -141,52 +136,6 @@ fun LoginScreen(
                     ) {
                         Text(
                             text = "Use Margaret's login",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    FilledTonalButton(
-                        onClick = {
-                            displayName = EMPTY_TEST_PATIENT_NAME
-                            email = EMPTY_TEST_PATIENT_EMAIL
-                            password = EMPTY_TEST_PATIENT_PASSWORD
-                            isCreatingAccount = false
-                            errorMessage = null
-                            infoMessage = "No-history test login is filled in. Tap Sign in."
-                        },
-                        enabled = !isLoading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp)
-                            .height(56.dp),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text(
-                            text = "Use no-history test login",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    FilledTonalButton(
-                        onClick = {
-                            displayName = "Dr. Alvarez"
-                            email = "doctor.alvarez@example.com"
-                            password = "HealthBridge1943!"
-                            isCreatingAccount = false
-                            errorMessage = null
-                            infoMessage = "Doctor login is filled in. Tap Sign in."
-                        },
-                        enabled = !isLoading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp)
-                            .height(56.dp),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text(
-                            text = "Use Doctor login",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -338,13 +287,13 @@ private fun AppHeader() {
         Spacer(modifier = Modifier.width(14.dp))
         Column {
             Text(
-                text = "Nora",
+                text = "Relay",
                 color = colorScheme.onBackground,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Your health record",
+                text = "Your health data, finally connected",
                 color = colorScheme.onSurfaceVariant,
                 fontSize = 18.sp
             )

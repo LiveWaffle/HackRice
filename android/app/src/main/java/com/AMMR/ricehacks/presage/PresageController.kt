@@ -9,9 +9,11 @@ import com.presagetech.smartspectra.proto.MetricTypesProto.MetricType
 class PresageController {
     val sdk = SmartSpectraSdk.shared
 
+    fun hasApiKey(): Boolean = BuildConfig.PRESAGE_API_KEY.isNotBlank()
+
     fun configure(previewView: PreviewView) {
-        check(BuildConfig.PRESAGE_API_KEY.isNotBlank()) {
-            "PRESAGE_API_KEY is missing from android/local.properties"
+        if (!hasApiKey()) {
+            return
         }
 
         sdk.config.apiKey = BuildConfig.PRESAGE_API_KEY
