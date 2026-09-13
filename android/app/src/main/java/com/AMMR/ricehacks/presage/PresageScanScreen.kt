@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.presagetech.smartspectra.CameraPosition
 import com.presagetech.smartspectra.ProcessingStatus
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -68,7 +70,53 @@ fun PresageScanScreen(
     var savedVitals by remember { mutableStateOf<List<SavedPresageVital>>(emptyList()) }
     var isHistoryLoading by remember { mutableStateOf(true) }
     var historyError by remember { mutableStateOf<String?>(null) }
+    var cameraAvailability by remember { mutableStateOf<PresageCameraAvailability?>(null) }
+    var selectedCameraPosition by remember { mutableStateOf<CameraPosition?>(null) }
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var configuredPreviewView by remember { mutableStateOf<PreviewView?>(null) }
+    var configuredCameraPosition by remember { mutableStateOf<CameraPosition?>(null) }
     val hasPresageKey = controller.hasApiKey()
+
+    fun configurePresagePreview() {
+        val view = previewView ?: return
+        val cameraPosition = selectedCameraPosition ?: return
+        if (configuredPreviewView === view && configuredCameraPosition == cameraPosition) {
+            return
+        }
+
+        configuredPreviewView = view
+        configuredCameraPosition = cameraPosition
+        view.post {
+            controller.configure(view, cameraPosition)
+        }
+    }
+
+    LaunchedEffect(context) {
+        runCatching {
+            controller.inspectCameraAvailability(context)
+        }.onSuccess { availability ->
+            cameraAvailability = availability
+            selectedCameraPosition = availability.preferredPosition
+            if (!availability.hasAnyCamera) {
+                errorMessage = "No camera is available to Android. In the emulator, edit the device and set at least one camera to Webcam or Emulated."
+            }
+        }.onFailure {
+            errorMessage = it.message
+                ?: "Could not verify camera availability. Check emulator camera settings."
+        }
+    }
+
+    LaunchedEffect(previewView, selectedCameraPosition) {
+        configurePresagePreview()
+    }
+
+    DisposableEffect(controller) {
+        onDispose {
+            scope.launch {
+                runCatching { controller.stop() }
+            }
+        }
+    }
 
     LaunchedEffect(accessToken, historyRefreshKey) {
         isHistoryLoading = true
@@ -116,11 +164,16 @@ fun PresageScanScreen(
     val startScan: () -> Unit = {
         if (!controller.hasApiKey()) {
             errorMessage = "Presage is not configured. Add PRESAGE_API_KEY in local.properties or your build environment."
+        } else if (selectedCameraPosition == null) {
+            errorMessage = "No Android camera is available for Presage. Check emulator camera settings or use a physical device."
+        } else if (previewView == null) {
+            errorMessage = "Camera preview is still loading. Try again in a moment."
         } else {
             latestPulse = null
             latestBreathing = null
             errorMessage = null
             saveMessage = null
+            configurePresagePreview()
 
             scope.launch {
                 runCatching {
@@ -176,15 +229,28 @@ fun PresageScanScreen(
             )
         }
 
+        cameraAvailability?.let { availability ->
+            Text(
+                text = when {
+                    !availability.hasAnyCamera -> "Camera unavailable to Android."
+                    selectedCameraPosition == CameraPosition.FRONT -> "Using front camera."
+                    selectedCameraPosition == CameraPosition.BACK -> "Using back camera because front camera is unavailable."
+                    else -> "Checking camera..."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         AndroidView(
             factory = { previewContext ->
                 PreviewView(previewContext).apply {
                     scaleType = PreviewView.ScaleType.FILL_CENTER
                     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    if (controller.hasApiKey()) {
-                        controller.configure(this)
-                    }
+                    previewView = this
                 }
+            },
+            update = { view ->
+                previewView = view
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -246,7 +312,9 @@ fun PresageScanScreen(
                     permissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             },
-            enabled = processingStatus != ProcessingStatus.STOPPING && hasPresageKey,
+            enabled = processingStatus != ProcessingStatus.STOPPING &&
+                hasPresageKey &&
+                selectedCameraPosition != null,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (scanIsRunning) "Stop scan" else "Start scan")
