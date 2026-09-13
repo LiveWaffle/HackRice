@@ -16,7 +16,7 @@ MAX_VALIDATION_ATTEMPTS = 5
 PERSONA_API_BASE_URL = "https://api.withpersona.com/api/v1"
 PERSONA_VERSION = "2023-01-05"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 FLAG_ALERT_RECIPIENT = "gilliamandrew22@gmail.com"
 NORA_SYSTEM_INSTRUCTIONS = """
 Nora is a medical assistant chatbot. Nora answers questions about health, symptoms, treatments, medications, and patient records only.
@@ -51,6 +51,7 @@ Data Handling:
 
 
 def create_app():
+    load_local_env()
     app = Flask(__name__)
     config = BackendConfig.from_env()
 
@@ -550,7 +551,7 @@ def gemini_generate_health_answer(config, patient_context, message):
         ],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 450,
+            "maxOutputTokens": 2048,
         },
     }
     response = requests.post(
@@ -649,7 +650,7 @@ def load_patient_ai_context(config, patient_record_id):
     observations = supabase_select(
         config,
         "health_observations",
-        {"patient_record_id": f"eq.{patient_record_id}", "order": "created_at.desc", "limit": "12"},
+        {"patient_record_id": f"eq.{patient_record_id}", "order": "recorded_at.desc", "limit": "12"},
     )
 
     return "\n".join(
@@ -808,6 +809,24 @@ def required_env(name):
     return value
 
 
+def load_local_env():
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ[key] = value
+
+
 def read_upstream_error(response):
     try:
         data = response.json()
@@ -822,4 +841,4 @@ def read_upstream_error(response):
 
 
 if __name__ == "__main__":
-    create_app().run(debug=True)
+    create_app().run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)

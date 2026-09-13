@@ -104,7 +104,7 @@ fun HomeTabContent(
         }
 
         DashboardCard("Start a Presage scan") {
-            Text("Take a new scan to add today’s reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
             Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }

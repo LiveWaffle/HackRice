@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -77,7 +78,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -241,7 +247,7 @@ fun NoraSessionList(
         Spacer(Modifier.height(28.dp))
 
         Text(
-            text = "Past Conversations",
+            text = "Conversations",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colorScheme.onBackground,
@@ -343,6 +349,7 @@ fun ActiveNoraSession(
     var voiceSession by remember { mutableStateOf<ConversationSession?>(null) }
     var isMuted by remember { mutableStateOf(false) }
     var showTranscriptInVoice by remember { mutableStateOf(false) }
+    var isNoraTyping by remember { mutableStateOf(false) }
 
     LaunchedEffect(session.id) {
         runCatching { askNoraRepository.fetchTurns(patientSession.accessToken, session.id) }
@@ -410,6 +417,7 @@ fun ActiveNoraSession(
             if (mode == AskNoraMode.Text) {
                 TextChatView(
                     turns = turns,
+                    isTyping = isNoraTyping,
                     onSend = { text ->
                         scope.launch {
                             val shouldTitleSession = turns.isEmpty()
@@ -428,8 +436,10 @@ fun ActiveNoraSession(
                                 }
                             }
 
+                            isNoraTyping = true
                             runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
                                 .onSuccess { response ->
+                                    isNoraTyping = false
                                     val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
                                     turns = turns + aiTurn
                                     runCatching {
@@ -437,6 +447,7 @@ fun ActiveNoraSession(
                                     }
                                 }
                                 .onFailure { throwable ->
+                                    isNoraTyping = false
                                     val message = throwable.message
                                         ?.takeIf { it.isNotBlank() }
                                         ?: "Nora could not respond right now. Check that the backend is running and configured."
@@ -507,13 +518,17 @@ fun ActiveNoraSession(
 @Composable
 fun TextChatView(
     turns: List<AskNoraTurn>,
+    isTyping: Boolean,
     onSend: (String) -> Unit,
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(turns.size) {
-        if (turns.isNotEmpty()) listState.animateScrollToItem(turns.size - 1)
+    LaunchedEffect(turns.size, isTyping) {
+        val targetIndex = if (isTyping) turns.size else turns.size - 1
+        if (targetIndex >= 0) {
+            listState.animateScrollToItem(targetIndex)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -527,6 +542,11 @@ fun TextChatView(
         ) {
             items(turns) { turn ->
                 ChatBubble(turn)
+            }
+            if (isTyping) {
+                item {
+                    TypingIndicatorBubble()
+                }
             }
         }
 
@@ -567,6 +587,69 @@ fun TextChatView(
 }
 
 @Composable
+fun TypingIndicatorBubble() {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Surface(
+            color = colorScheme.secondaryContainer,
+            contentColor = colorScheme.onSecondaryContainer,
+            shape = MaterialTheme.shapes.large.copy(
+                bottomEnd = CornerSize(16.dp),
+                bottomStart = CornerSize(0.dp)
+            ),
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = colorScheme.onSecondaryContainer,
+                    strokeWidth = 2.dp
+                )
+                Text("Nora is typing...", fontSize = 16.sp)
+            }
+        }
+    }
+}
+
+fun parseMarkdown(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        var currentIndex = 0
+        val regex = Regex("\\*\\*(.*?)\\*\\*|\\*(.*?)\\*|_(.*?)_")
+        val matches = regex.findAll(text)
+        for (match in matches) {
+            append(text.substring(currentIndex, match.range.first))
+            when {
+                match.groups[1] != null -> {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(match.groups[1]!!.value)
+                    }
+                }
+                match.groups[2] != null -> {
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                        append(match.groups[2]!!.value)
+                    }
+                }
+                match.groups[3] != null -> {
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                        append(match.groups[3]!!.value)
+                    }
+                }
+            }
+            currentIndex = match.range.last + 1
+        }
+        append(text.substring(currentIndex, text.length))
+    }
+}
+
+@Composable
 fun ChatBubble(turn: AskNoraTurn) {
     val isUser = turn.speaker == AskNoraSpeaker.User
     val colorScheme = MaterialTheme.colorScheme
@@ -585,7 +668,7 @@ fun ChatBubble(turn: AskNoraTurn) {
             modifier = Modifier.widthIn(max = 280.dp)
         ) {
             Text(
-                text = turn.text,
+                text = parseMarkdown(turn.text),
                 modifier = Modifier.padding(12.dp),
                 fontSize = 16.sp
             )
@@ -627,7 +710,10 @@ fun VoiceCallView(
             ) {
                 items(turns) { turn ->
                     Text(
-                        text = "${if (turn.speaker == AskNoraSpeaker.User) "You: " else "Nora: "}${turn.text}",
+                        text = buildAnnotatedString {
+                            append(if (turn.speaker == AskNoraSpeaker.User) "You: " else "Nora: ")
+                            append(parseMarkdown(turn.text))
+                        },
                         fontSize = 18.sp,
                         fontWeight = if (turn.speaker == AskNoraSpeaker.Assistant) FontWeight.Bold else FontWeight.Normal,
                         color = if (turn.speaker == AskNoraSpeaker.Assistant) colorScheme.primary else colorScheme.onSurface,
