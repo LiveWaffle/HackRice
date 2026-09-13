@@ -2,10 +2,19 @@ package com.AMMR.ricehacks.presage
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+
+data class SavedPresageVital(
+    val type: String,
+    val valueNumeric: Double?,
+    val unit: String?,
+    val source: String?,
+    val observedAt: String?
+)
 
 class PresageVitalsRepository(
     private val supabaseUrl: String,
@@ -14,7 +23,7 @@ class PresageVitalsRepository(
     suspend fun saveReading(
         accessToken: String,
         reading: VitalsReading
-    ) = withContext(Dispatchers.IO) {
+    ) {
         val pulse = requireNotNull(reading.pulseRateBpm)
         val breathing = requireNotNull(reading.breathingRatePerMinute)
 
@@ -30,9 +39,48 @@ class PresageVitalsRepository(
             put("p_validation_code", reading.validationCode)
         }
 
+        requestRpc(
+            path = "/rest/v1/rpc/save_presage_vitals",
+            accessToken = accessToken,
+            requestBody = requestBody
+        )
+    }
+
+    suspend fun getRecentVitals(
+        accessToken: String
+    ): List<SavedPresageVital> {
+        val response = requestRpc(
+            path = "/rest/v1/rpc/get_my_presage_vitals",
+            accessToken = accessToken,
+            requestBody = JSONObject()
+        )
+
+        val array = JSONArray(response)
+
+        return (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let { json ->
+                SavedPresageVital(
+                    type = json.optString("observation_type"),
+                    valueNumeric = if (json.isNull("value_numeric")) {
+                        null
+                    } else {
+                        json.optDouble("value_numeric")
+                    },
+                    unit = json.optNullableString("unit"),
+                    source = json.optNullableString("source"),
+                    observedAt = json.optNullableString("recorded_at")
+                )
+            }
+        }
+    }
+
+    private suspend fun requestRpc(
+        path: String,
+        accessToken: String,
+        requestBody: JSONObject
+    ): String = withContext(Dispatchers.IO) {
         val connection = (
-            URL("$supabaseUrl/rest/v1/rpc/save_presage_vitals")
-                .openConnection() as HttpURLConnection
+            URL("$supabaseUrl$path").openConnection() as HttpURLConnection
             ).apply {
             requestMethod = "POST"
             connectTimeout = 15_000
@@ -40,6 +88,7 @@ class PresageVitalsRepository(
             doOutput = true
             setRequestProperty("apikey", publishableKey)
             setRequestProperty("Authorization", "Bearer $accessToken")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("Content-Type", "application/json")
         }
 
@@ -48,18 +97,33 @@ class PresageVitalsRepository(
                 it.write(requestBody.toString())
             }
 
-            if (connection.responseCode !in 200..299) {
-                val error = connection.errorStream
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    .orEmpty()
+            val responseStream = if (connection.responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: connection.inputStream
+            }
 
+            val response = responseStream
+                .bufferedReader()
+                .use { it.readText() }
+
+            if (connection.responseCode !in 200..299) {
                 throw IllegalStateException(
-                    error.ifBlank { "Could not save the Presage reading." }
+                    response.ifBlank { "Supabase request failed." }
                 )
             }
+
+            response
         } finally {
             connection.disconnect()
         }
+    }
+}
+
+private fun JSONObject.optNullableString(name: String): String? {
+    return if (isNull(name)) {
+        null
+    } else {
+        optString(name).ifBlank { null }
     }
 }

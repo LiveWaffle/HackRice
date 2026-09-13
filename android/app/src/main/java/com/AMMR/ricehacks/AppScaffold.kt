@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,8 @@ import com.AMMR.ricehacks.data.PatientDataRepository
 import com.AMMR.ricehacks.data.QrAccessRepository
 import com.AMMR.ricehacks.data.SupabaseAskNoraRepository
 import com.AMMR.ricehacks.presage.PresageScanScreen
+import com.AMMR.ricehacks.presage.PresageVitalsRepository
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoggedInHomeScreen(
@@ -47,7 +50,15 @@ fun LoggedInHomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
+    var showingMargaretRecord by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
+    val presageVitalsRepository = remember {
+    PresageVitalsRepository(
+        supabaseUrl = BuildConfig.SUPABASE_URL,
+        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+    )
+}
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -101,6 +112,7 @@ fun LoggedInHomeScreen(
                         NavigationBarItem(
                             selected = selectedDestination == destination,
                             onClick = {
+                                showingMargaretRecord = false
                                 Log.d("NoraDebug", "Navigating to: ${destination.label}")
                                 selectedDestination = destination
                                 if (destination != AppDestination.Settings) {
@@ -132,13 +144,33 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent(
-                    patientName = patientSession.email?.substringBefore('@') ?: "there",
-                    role = patientSession.role,
-                    onViewHealthData = { selectedDestination = AppDestination.MyData },
-                    onStartScan = { selectedDestination = AppDestination.Vitals }
+                AppDestination.Home -> {
+                    if (showingMargaretRecord) {
+                        MargaretRecordScreen()
+                    } else {
+                        HomeTabContent(
+                            patientName = patientSession.email?.substringBefore('@') ?: "there",
+                            role = patientSession.role,
+                            accessToken = patientSession.accessToken,
+                            presageVitalsRepository = presageVitalsRepository,
+                            onViewHealthData = { selectedDestination = AppDestination.MyData },
+                            onOpenRecord = { showingMargaretRecord = true },
+                            onStartScan = { selectedDestination = AppDestination.Vitals }
+                        )
+                    }
+                }
+                AppDestination.Vitals -> PresageScanScreen(
+                    onReadingReady = { reading ->
+                        scope.launch {
+                            runCatching {
+                                presageVitalsRepository.saveReading(
+                                    accessToken = patientSession.accessToken,
+                                    reading = reading
+                                )
+                            }
+                        }
+                    }
                 )
-                AppDestination.Vitals -> PresageScanScreen(onReadingReady = { })
                 AppDestination.MyData -> MyDataQrScreen(
                     patientSession = patientSession,
                     qrAccessRepository = qrAccessRepository,

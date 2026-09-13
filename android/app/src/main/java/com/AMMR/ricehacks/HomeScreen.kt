@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AMMR.ricehacks.data.UserRole
+import com.AMMR.ricehacks.presage.PresageDailyTrackerCard
+import com.AMMR.ricehacks.presage.PresageVitalsRepository
 
 private enum class TrendRange(val label: String) { Day("Day"), Week("Week"), Month("Month"), Year("Year") }
 
@@ -34,7 +36,10 @@ private enum class TrendRange(val label: String) { Day("Day"), Week("Week"), Mon
 fun HomeTabContent(
     patientName: String,
     role: UserRole = UserRole.Patient,
+    accessToken: String,
+    presageVitalsRepository: PresageVitalsRepository,
     onViewHealthData: () -> Unit,
+    onOpenRecord: () -> Unit,
     onStartScan: () -> Unit,
 ) {
     var range by remember { mutableStateOf(TrendRange.Week) }
@@ -65,6 +70,11 @@ fun HomeTabContent(
             lineHeight = 28.sp
         )
 
+        PresageDailyTrackerCard(
+            accessToken = accessToken,
+            presageVitalsRepository = presageVitalsRepository
+        )
+
         if (role == UserRole.Doctor) {
             HomeActionCard(
                 title = "Patient Scanner",
@@ -73,6 +83,12 @@ fun HomeTabContent(
                 onClick = onStartScan
             )
         } else {
+            HomeActionCard(
+                title = "My health record",
+                message = "Medicines, allergies, conditions, and documents.",
+                buttonText = "Open record",
+                onClick = onOpenRecord
+            )
             DashboardCard("Your latest health summary") {
                 Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
                 Text("2 providers • 3 current medicines • 1 recent vital", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
