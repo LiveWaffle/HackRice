@@ -162,14 +162,6 @@ fun LoggedInHomeScreen(
                         publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
                     )
                 )
-                AppDestination.Ai -> AskNoraScreen(
-                    patientSession = patientSession,
-                    aiRepository = aiRepository,
-                    askNoraRepository = SupabaseAskNoraRepository(
-                        supabaseUrl = BuildConfig.SUPABASE_URL,
-                        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-                    )
-                )
             }
         }
     }

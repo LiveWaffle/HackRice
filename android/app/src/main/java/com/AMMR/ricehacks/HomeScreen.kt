@@ -37,13 +37,8 @@ fun HomeTabContent(
     onViewHealthData: () -> Unit,
     onStartScan: () -> Unit,
 ) {
-<<<<<<< Updated upstream
-    val colors = MaterialTheme.colorScheme
     var range by remember { mutableStateOf(TrendRange.Week) }
-=======
-    var range by remember { mutableStateOf(TrendRange.Day) }
     val colorScheme = MaterialTheme.colorScheme
->>>>>>> Stashed changes
 
     Column(
         modifier = Modifier
@@ -60,17 +55,12 @@ fun HomeTabContent(
             fontWeight = FontWeight.Bold
         )
         Text(
-<<<<<<< Updated upstream
             text = if (role == UserRole.Doctor) {
                 "Manage your patient visits and scans."
             } else {
                 "Welcome back. We'll keep this simple and take one step at a time."
             },
-            color = colors.onSurfaceVariant,
-=======
-            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Welcome back. We’ll keep this simple and take one step at a time.",
             color = colorScheme.onSurfaceVariant,
->>>>>>> Stashed changes
             fontSize = 19.sp,
             lineHeight = 28.sp
         )
@@ -85,11 +75,7 @@ fun HomeTabContent(
         } else {
             DashboardCard("Your latest health summary") {
                 Text("Your record is ready to review before your next visit.", fontSize = 18.sp, lineHeight = 26.sp)
-<<<<<<< Updated upstream
-                Text("2 providers, 3 current medicines, 1 recent vital", color = colors.onSurfaceVariant, fontSize = 16.sp)
-=======
                 Text("2 providers • 3 current medicines • 1 recent vital", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
->>>>>>> Stashed changes
                 OutlinedButton(onClick = onViewHealthData, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                     Text("View recent health summary", fontSize = 17.sp)
                 }
@@ -113,26 +99,12 @@ fun HomeTabContent(
                     FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
                 }
             }
-<<<<<<< Updated upstream
-            Text("Presage scan trend - ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-            Text(
-                "Your connected scans and visit data will appear here as they are added.",
-                color = colors.onSurfaceVariant,
-                fontSize = 17.sp,
-                lineHeight = 25.sp
-            )
-        }
-
-        DashboardCard("Start a Presage scan") {
-            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
-=======
             Text("Presage scan trend • ${range.label}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
             Text("Your connected scans and visit data will appear here as they are added.", color = colorScheme.onSurfaceVariant, fontSize = 17.sp, lineHeight = 25.sp)
         }
 
         DashboardCard("Start a Presage scan") {
             Text("Take a new scan to add today’s reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
->>>>>>> Stashed changes
             Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -183,48 +155,3 @@ private fun DashboardCard(title: String, content: @Composable ColumnScope.() -> 
     }
 }
 
-@Composable
-private fun HomeActionCard(
-    title: String,
-    message: String,
-    buttonText: String
-) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = title,
-                color = colorScheme.onSurface,
-                fontSize = 24.sp,
-                lineHeight = 30.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = message,
-                color = colorScheme.onSurfaceVariant,
-                fontSize = 18.sp,
-                lineHeight = 27.sp
-            )
-            Button(
-                onClick = {},
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Text(
-                    text = buttonText,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
