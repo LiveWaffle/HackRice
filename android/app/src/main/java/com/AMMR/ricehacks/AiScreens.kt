@@ -2,9 +2,11 @@ package com.AMMR.ricehacks
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -52,6 +54,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -161,6 +164,21 @@ fun AskNoraScreen(
             onSelectSession = { activeSession = it }
         )
     }
+}
+
+private const val DEFAULT_NORA_OPENING_MESSAGE = "Hi, I’m Nora. Tell me about your concern, question, or request and I’ll help you work through it."
+
+private val TEXT_CHAT_QUICK_REPLIES = listOf(
+    "I have a new symptom to report",
+    "I want to ask about a medication",
+    "I have a question about a recent visit",
+    "Just checking in"
+)
+
+enum class NoraVoiceState {
+    Connecting,
+    Listening,
+    Speaking
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -343,43 +361,137 @@ fun ActiveNoraSession(
 ) {
     var mode by remember { mutableStateOf(session.initialMode) }
     var turns by remember { mutableStateOf<List<AskNoraTurn>>(emptyList()) }
+    var sessionSummary by remember { mutableStateOf<String?>(null) }
+    var currentVoiceState by remember { mutableStateOf(NoraVoiceState.Listening) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val voiceService = remember { ElevenLabsVoiceService() }
     var voiceSession by remember { mutableStateOf<ConversationSession?>(null) }
+    var voiceError by remember { mutableStateOf<String?>(null) }
     var isMuted by remember { mutableStateOf(false) }
     var showTranscriptInVoice by remember { mutableStateOf(false) }
     var isNoraTyping by remember { mutableStateOf(false) }
+    var showVoiceSetupOnce by remember { mutableStateOf(true) }
+    var isStartingVoiceCall by remember { mutableStateOf(false) }
+    val isSpeakingVoice = currentVoiceState == NoraVoiceState.Speaking
+
+    val saveTextSessionSummaryIfNeeded: suspend () -> Unit = {
+        if (mode == AskNoraMode.Text) {
+            val summaryText = sessionSummary?.takeIf { it.isNotBlank() }
+                ?: turns.takeIf { it.isNotEmpty() }?.let { transcriptTurns ->
+                    val transcript = transcriptTurns.joinToString("\n") { "${if (it.speaker == AskNoraSpeaker.User) "User" else "Nora"}: ${it.text}" }
+                    runCatching { aiRepository.summarizeConversation(patientSession.accessToken, transcript) }
+                        .getOrNull()
+                }
+
+            if (!summaryText.isNullOrBlank()) {
+                sessionSummary = summaryText
+                runCatching { askNoraRepository.updateSessionSummary(patientSession.accessToken, session.id, summaryText) }
+            }
+        }
+    }
 
     LaunchedEffect(session.id) {
+        sessionSummary = session.summary
         runCatching { askNoraRepository.fetchTurns(patientSession.accessToken, session.id) }
-            .onSuccess { turns = it }
+            .onSuccess { fetchedTurns ->
+                turns = fetchedTurns
+                if (fetchedTurns.isEmpty() && mode == AskNoraMode.Text) {
+                    val opener = AskNoraTurn(AskNoraSpeaker.Assistant, DEFAULT_NORA_OPENING_MESSAGE)
+                    runCatching { askNoraRepository.appendTurn(patientSession.accessToken, session.id, opener) }
+                    turns = listOf(opener)
+                }
+                if (sessionSummary == null && mode == AskNoraMode.Text && fetchedTurns.isNotEmpty()) {
+                    val transcript = fetchedTurns.joinToString("\n") { "${if (it.speaker == AskNoraSpeaker.User) "User" else "Nora"}: ${it.text}" }
+                    runCatching {
+                        val summary = aiRepository.summarizeConversation(patientSession.accessToken, transcript)
+                        sessionSummary = summary
+                        askNoraRepository.updateSessionSummary(patientSession.accessToken, session.id, summary)
+                    }
+                }
+                if (sessionSummary == null && mode == AskNoraMode.Voice && !session.conversationId.isNullOrBlank()) {
+                    runCatching {
+                        val summary = voiceService.fetchConversationSummary(patientSession.accessToken, session.conversationId!!)
+                        if (!summary.isNullOrBlank()) {
+                            sessionSummary = summary
+                            askNoraRepository.updateSessionSummary(patientSession.accessToken, session.id, summary)
+                        }
+                    }
+                }
+            }
     }
 
     val microphonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
+            currentVoiceState = NoraVoiceState.Connecting
             scope.launch {
-                val sessionInstance = voiceService.startIntake(
-                    context = context,
-                    accessToken = patientSession.accessToken,
-                    onTranscript = { text ->
-                        scope.launch {
-                            val turn = AskNoraTurn(AskNoraSpeaker.User, text)
-                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
-                            turns = turns + turn
+                runCatching {
+                    voiceService.startIntake(
+                        context = context,
+                        accessToken = patientSession.accessToken,
+                        language = "en",
+                        patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                        patientId = patientSession.userId,
+                        onTranscript = { text ->
+                            scope.launch {
+                                val cleanText = sanitizeTranscriptText(text)
+                                val turn = AskNoraTurn(AskNoraSpeaker.User, cleanText)
+                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                turns = turns + turn
+                            }
+                        },
+                        onAgentResponse = { text ->
+                            scope.launch {
+                                val cleanText = sanitizeTranscriptText(text)
+                                val turn = AskNoraTurn(AskNoraSpeaker.Assistant, cleanText)
+                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                turns = turns + turn
+                            }
+                        },
+                        onIntakeDraft = { draft ->
+                            scope.launch {
+                                runCatching {
+                                    askNoraRepository.submitIntakeDraft(
+                                        patientSession.accessToken,
+                                        session.id,
+                                        draft.copy(patientId = patientSession.userId ?: draft.patientId)
+                                    )
+                                }
+                            }
+                        },
+                        onSessionStatusChange = { status ->
+                            val normalized = status.lowercase()
+                            currentVoiceState = when {
+                                normalized.contains("connect") -> NoraVoiceState.Connecting
+                                normalized.contains("error") || normalized.contains("disconnect") -> NoraVoiceState.Listening
+                                else -> NoraVoiceState.Listening
+                            }
+                        },
+                        onSpeakingStateChange = { speaking ->
+                            currentVoiceState = if (speaking) NoraVoiceState.Speaking else NoraVoiceState.Listening
+                        },
+                        onConversationIdReady = { conversationId ->
+                            scope.launch {
+                                runCatching {
+                                    askNoraRepository.updateSessionConversationId(patientSession.accessToken, session.id, conversationId)
+                                }
+                            }
                         }
-                    },
-                    onAgentResponse = { text ->
-                        scope.launch {
-                            val turn = AskNoraTurn(AskNoraSpeaker.Assistant, text)
-                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
-                            turns = turns + turn
-                        }
-                    }
-                )
-                voiceSession = sessionInstance
+                    )
+                }.onSuccess { startedSession ->
+                    voiceSession = startedSession
+                    voiceError = null
+                    currentVoiceState = NoraVoiceState.Listening
+                }.onFailure { throwable ->
+                    Log.e("NoraVoice", "Unable to start ElevenLabs session", throwable)
+                    voiceError = throwable.localizedMessage
+                        ?: throwable.message
+                        ?: "Could not connect to Nora’s voice assistant."
+                    voiceSession = null
+                    currentVoiceState = NoraVoiceState.Listening
+                }
             }
         }
     }
@@ -389,7 +501,12 @@ fun ActiveNoraSession(
             TopAppBar(
                 title = { Text("Ask Nora") },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
+                    IconButton(onClick = {
+                        if (mode == AskNoraMode.Text) {
+                            scope.launch { saveTextSessionSummaryIfNeeded() }
+                        }
+                        onClose()
+                    }) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 },
@@ -415,101 +532,333 @@ fun ActiveNoraSession(
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             if (mode == AskNoraMode.Text) {
-                TextChatView(
-                    turns = turns,
-                    isTyping = isNoraTyping,
-                    onSend = { text ->
-                        scope.launch {
-                            val shouldTitleSession = turns.isEmpty()
-                            val userTurn = AskNoraTurn(AskNoraSpeaker.User, text)
-                            turns = turns + userTurn
-                            runCatching {
-                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (sessionSummary != null) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Conversation summary",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = sessionSummary ?: "",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 22.sp
+                                )
                             }
-                            if (shouldTitleSession) {
-                                runCatching {
-                                    askNoraRepository.updateSessionTitle(
-                                        patientSession.accessToken,
-                                        session.id,
-                                        titleFromMessage(text)
-                                    )
-                                }
-                            }
-
-                            isNoraTyping = true
-                            runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
-                                .onSuccess { response ->
-                                    isNoraTyping = false
-                                    val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
-                                    turns = turns + aiTurn
-                                    runCatching {
-                                        askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
-                                    }
-                                }
-                                .onFailure { throwable ->
-                                    isNoraTyping = false
-                                    val message = throwable.message
-                                        ?.takeIf { it.isNotBlank() }
-                                        ?: "Nora could not respond right now. Check that the backend is running and configured."
-                                    val errorTurn = AskNoraTurn(
-                                        AskNoraSpeaker.Assistant,
-                                        "Nora could not respond: $message"
-                                    )
-                                    turns = turns + errorTurn
-                                }
                         }
                     }
-                )
-            } else {
-                VoiceCallView(
-                    turns = turns,
-                    isActive = voiceSession != null,
-                    isMuted = isMuted,
-                    showTranscript = showTranscriptInVoice,
-                    onToggleTranscript = { showTranscriptInVoice = it },
-                    onStart = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+
+                    TextChatView(
+                        turns = turns,
+                        isTyping = isNoraTyping,
+                        quickReplies = if (turns.size <= 1) TEXT_CHAT_QUICK_REPLIES else emptyList(),
+                        onSend = { text ->
                             scope.launch {
-                                val startedSession = voiceService.startIntake(
-                                    context = context,
-                                    accessToken = patientSession.accessToken,
-                                    onTranscript = { text ->
-                                        scope.launch {
-                                            val turn = AskNoraTurn(AskNoraSpeaker.User, text)
-                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
-                                            turns = turns + turn
+                                val shouldTitleSession = turns.isEmpty()
+                                val userTurn = AskNoraTurn(AskNoraSpeaker.User, text)
+                                turns = turns + userTurn
+                                runCatching {
+                                    askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn)
+                                }
+                                if (shouldTitleSession) {
+                                    runCatching {
+                                        askNoraRepository.updateSessionTitle(
+                                            patientSession.accessToken,
+                                            session.id,
+                                            titleFromMessage(text)
+                                        )
+                                    }
+                                }
+
+                                isNoraTyping = true
+                                runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
+                                    .onSuccess { response ->
+                                        isNoraTyping = false
+                                        val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
+                                        turns = turns + aiTurn
+                                        runCatching {
+                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                        }
+                                    }
+                                    .onFailure { throwable ->
+                                        isNoraTyping = false
+                                        val message = throwable.message
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?: "Nora could not respond right now. Check that the backend is running and configured."
+                                        val errorTurn = AskNoraTurn(
+                                            AskNoraSpeaker.Assistant,
+                                            "Nora could not respond: $message"
+                                        )
+                                        turns = turns + errorTurn
+                                    }
+                            }
+                        },
+                        onQuickReply = { text ->
+                            scope.launch {
+                                val userTurn = AskNoraTurn(AskNoraSpeaker.User, text)
+                                turns = turns + userTurn
+                                runCatching { askNoraRepository.appendTurn(patientSession.accessToken, session.id, userTurn) }
+                                isNoraTyping = true
+                                runCatching { aiRepository.askQuestion(patientSession.accessToken, text) }
+                                    .onSuccess { response ->
+                                        isNoraTyping = false
+                                        val aiTurn = AskNoraTurn(AskNoraSpeaker.Assistant, response.answer)
+                                        turns = turns + aiTurn
+                                        runCatching {
+                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, aiTurn)
+                                        }
+                                    }
+                                    .onFailure { throwable ->
+                                        isNoraTyping = false
+                                        val message = throwable.message
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?: "Nora could not respond right now. Check that the backend is running and configured."
+                                        turns = turns + AskNoraTurn(
+                                            AskNoraSpeaker.Assistant,
+                                            "Nora could not respond: $message"
+                                        )
+                                    }
+                            }
+                        }
+                    )
+                }
+            } else {
+                if (showVoiceSetupOnce) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = "Nora voice",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp
+                                )
+                                Text(
+                                    text = "Using the default English voice for this session.",
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontSize = 16.sp
+                                )
+                                Button(
+                                    onClick = {
+                                        showVoiceSetupOnce = false
+                                        isStartingVoiceCall = true
+                                        currentVoiceState = NoraVoiceState.Connecting
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                            scope.launch {
+                                                runCatching {
+                                                    voiceService.startIntake(
+                                                        context = context,
+                                                        accessToken = patientSession.accessToken,
+                                                        language = "en",
+                                                        patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                                                        patientId = patientSession.userId,
+                                                        onTranscript = { text ->
+                                                            scope.launch {
+                                                                val cleanText = sanitizeTranscriptText(text)
+                                                                val turn = AskNoraTurn(AskNoraSpeaker.User, cleanText)
+                                                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                                                turns = turns + turn
+                                                            }
+                                                        },
+                                                        onAgentResponse = { text ->
+                                                            scope.launch {
+                                                                val cleanText = sanitizeTranscriptText(text)
+                                                                val turn = AskNoraTurn(AskNoraSpeaker.Assistant, cleanText)
+                                                                askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                                                turns = turns + turn
+                                                            }
+                                                        },
+                                                        onIntakeDraft = { draft ->
+                                                            scope.launch {
+                                                                runCatching {
+                                                                    askNoraRepository.submitIntakeDraft(
+                                                                        patientSession.accessToken,
+                                                                        session.id,
+                                                                        draft.copy(patientId = patientSession.userId ?: draft.patientId)
+                                                                    )
+                                                                }
+                                                            }
+                                                        },
+                                                        onSessionStatusChange = { status ->
+                                                            val normalized = status.lowercase()
+                                                            currentVoiceState = when {
+                                                                normalized.contains("connect") -> NoraVoiceState.Connecting
+                                                                else -> NoraVoiceState.Listening
+                                                            }
+                                                        },
+                                                        onSpeakingStateChange = { speaking ->
+                                                            currentVoiceState = if (speaking) NoraVoiceState.Speaking else NoraVoiceState.Listening
+                                                        },
+                                                        onConversationIdReady = { conversationId ->
+                                                            scope.launch {
+                                                                runCatching {
+                                                                    askNoraRepository.updateSessionConversationId(patientSession.accessToken, session.id, conversationId)
+                                                                }
+                                                            }
+                                                        }
+                                                    )
+                                                }.onSuccess { startedSession ->
+                                                    voiceSession = startedSession
+                                                    voiceError = null
+                                                    currentVoiceState = NoraVoiceState.Listening
+                                                }.onFailure { throwable ->
+                                                    Log.e("NoraVoice", "Unable to start ElevenLabs session", throwable)
+                                                    voiceError = throwable.localizedMessage
+                                                        ?: throwable.message
+                                                        ?: "Could not connect to Nora’s voice assistant."
+                                                    voiceSession = null
+                                                    currentVoiceState = NoraVoiceState.Listening
+                                                }
+                                                isStartingVoiceCall = false
+                                            }
+                                        } else {
+                                            isStartingVoiceCall = false
+                                            voiceError = null
+                                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                                         }
                                     },
-                                    onAgentResponse = { text ->
-                                        scope.launch {
-                                            val turn = AskNoraTurn(AskNoraSpeaker.Assistant, text)
-                                            askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
-                                            turns = turns + turn
-                                        }
-                                    }
-                                )
-                                voiceSession = startedSession
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Start call")
+                                }
                             }
-                        } else {
-                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onEnd = {
-                        scope.launch {
-                            voiceSession?.let { voiceService.end(it) }
-                            voiceSession = null
-                            askNoraRepository.endSession(patientSession.accessToken, session.id)
-                            onClose()
-                        }
-                    },
-                    onMute = {
-                        scope.launch {
-                            val nextMuted = !isMuted
-                            voiceSession?.let { voiceService.setMuted(it, nextMuted) }
-                            isMuted = nextMuted
                         }
                     }
-                )
+                } else {
+                    VoiceCallView(
+                        turns = turns,
+                        isActive = voiceSession != null,
+                        isMuted = isMuted,
+                        showTranscript = true,
+                        errorMessage = voiceError,
+                        onToggleTranscript = { },
+                        onStart = {
+                            isStartingVoiceCall = true
+                            currentVoiceState = NoraVoiceState.Connecting
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                scope.launch {
+                                    runCatching {
+                                        voiceService.startIntake(
+                                            context = context,
+                                            accessToken = patientSession.accessToken,
+                                            language = "en",
+                                            patientName = patientSession.email?.substringBefore('@') ?: "Patient",
+                                            patientId = patientSession.userId,
+                                            onTranscript = { text ->
+                                                scope.launch {
+                                                    val cleanText = sanitizeTranscriptText(text)
+                                                    val turn = AskNoraTurn(AskNoraSpeaker.User, cleanText)
+                                                    askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                                    turns = turns + turn
+                                                }
+                                            },
+                                            onAgentResponse = { text ->
+                                                scope.launch {
+                                                    val cleanText = sanitizeTranscriptText(text)
+                                                    val turn = AskNoraTurn(AskNoraSpeaker.Assistant, cleanText)
+                                                    askNoraRepository.appendTurn(patientSession.accessToken, session.id, turn)
+                                                    turns = turns + turn
+                                                }
+                                            },
+                                            onIntakeDraft = { draft ->
+                                                scope.launch {
+                                                    runCatching {
+                                                        askNoraRepository.submitIntakeDraft(
+                                                            patientSession.accessToken,
+                                                            session.id,
+                                                            draft.copy(patientId = patientSession.userId ?: draft.patientId)
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onSessionStatusChange = { status ->
+                                                val normalized = status.lowercase()
+                                                currentVoiceState = when {
+                                                    normalized.contains("connect") -> NoraVoiceState.Connecting
+                                                    else -> NoraVoiceState.Listening
+                                                }
+                                            },
+                                            onSpeakingStateChange = { speaking ->
+                                                currentVoiceState = if (speaking) NoraVoiceState.Speaking else NoraVoiceState.Listening
+                                            },
+                                            onConversationIdReady = { conversationId ->
+                                                scope.launch {
+                                                    runCatching {
+                                                        askNoraRepository.updateSessionConversationId(patientSession.accessToken, session.id, conversationId)
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }.onSuccess { startedSession ->
+                                        voiceSession = startedSession
+                                        voiceError = null
+                                        currentVoiceState = NoraVoiceState.Listening
+                                    }.onFailure { throwable ->
+                                        Log.e("NoraVoice", "Unable to start ElevenLabs session", throwable)
+                                        voiceError = throwable.localizedMessage
+                                            ?: throwable.message
+                                            ?: "Could not connect to Nora’s voice assistant."
+                                        voiceSession = null
+                                        currentVoiceState = NoraVoiceState.Listening
+                                    }
+                                    isStartingVoiceCall = false
+                                }
+                            } else {
+                                isStartingVoiceCall = false
+                                voiceError = null
+                                microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        onEnd = {
+                            scope.launch {
+                                val endedConversationId = voiceSession?.getId()
+                                runCatching { voiceSession?.let { voiceService.end(it) } }
+                                runCatching {
+                                    if (!endedConversationId.isNullOrBlank()) {
+                                        val summary = voiceService.fetchConversationSummary(patientSession.accessToken, endedConversationId)
+                                        if (!summary.isNullOrBlank()) {
+                                            sessionSummary = summary
+                                            askNoraRepository.updateSessionSummary(patientSession.accessToken, session.id, summary)
+                                        }
+                                    }
+                                }
+                                voiceSession = null
+                                voiceError = null
+                                runCatching { askNoraRepository.endSession(patientSession.accessToken, session.id) }
+                                onClose()
+                            }
+                        },
+                        onMute = {
+                            scope.launch {
+                                val nextMuted = !isMuted
+                                voiceSession?.let { voiceService.setMuted(it, nextMuted) }
+                                isMuted = nextMuted
+                            }
+                        },
+                        isStarting = isStartingVoiceCall,
+                        isSpeaking = isSpeakingVoice,
+                    )
+                }
             }
         }
     }
@@ -519,7 +868,9 @@ fun ActiveNoraSession(
 fun TextChatView(
     turns: List<AskNoraTurn>,
     isTyping: Boolean,
+    quickReplies: List<String> = emptyList(),
     onSend: (String) -> Unit,
+    onQuickReply: ((String) -> Unit)? = null,
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -542,6 +893,16 @@ fun TextChatView(
         ) {
             items(turns) { turn ->
                 ChatBubble(turn)
+            }
+            if (quickReplies.isNotEmpty()) {
+                item {
+                    FlowRow(
+                        items = quickReplies,
+                        onClick = { suggestion ->
+                            onQuickReply?.invoke(suggestion) ?: onSend(suggestion)
+                        }
+                    )
+                }
             }
             if (isTyping) {
                 item {
@@ -581,6 +942,38 @@ fun TextChatView(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlowRow(
+    items: List<String>,
+    onClick: (String) -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEach { item ->
+                FilterChip(
+                    selected = false,
+                    onClick = { onClick(item) },
+                    label = { Text(item, fontSize = 13.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = colorScheme.secondaryContainer,
+                        labelColor = colorScheme.onSecondaryContainer,
+                        selectedContainerColor = colorScheme.primaryContainer,
+                        selectedLabelColor = colorScheme.onPrimaryContainer
+                    )
+                )
             }
         }
     }
@@ -683,47 +1076,66 @@ fun VoiceCallView(
     isActive: Boolean,
     isMuted: Boolean,
     showTranscript: Boolean,
+    errorMessage: String? = null,
     onToggleTranscript: (Boolean) -> Unit,
     onStart: () -> Unit,
     onEnd: () -> Unit,
     onMute: () -> Unit,
+    isStarting: Boolean = false,
+    isSpeaking: Boolean = false,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(turns.size) {
+        if (turns.isNotEmpty()) {
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val shouldAutoScroll = lastVisibleIndex >= turns.lastIndex - 1 || turns.size <= 3
+            if (shouldAutoScroll) {
+                listState.animateScrollToItem(turns.lastIndex)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        if (showTranscript) {
-            val listState = rememberLazyListState()
-            LaunchedEffect(turns.size) {
-                if (turns.isNotEmpty()) listState.animateScrollToItem(turns.size - 1)
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(16.dp)
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
             ) {
-                items(turns) { turn ->
-                    Text(
-                        text = buildAnnotatedString {
-                            append(if (turn.speaker == AskNoraSpeaker.User) "You: " else "Nora: ")
-                            append(parseMarkdown(turn.text))
-                        },
-                        fontSize = 18.sp,
-                        fontWeight = if (turn.speaker == AskNoraSpeaker.Assistant) FontWeight.Bold else FontWeight.Normal,
-                        color = if (turn.speaker == AskNoraSpeaker.Assistant) colorScheme.primary else colorScheme.onSurface,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                Spacer(modifier = Modifier.height(12.dp))
+                Crossfade(targetState = showTranscript, label = "voice_view_mode") { transcriptVisible ->
+                    if (transcriptVisible) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(turns) { turn ->
+                                Text(
+                                    text = buildAnnotatedString {
+                                        append(if (turn.speaker == AskNoraSpeaker.User) "You: " else "Nora: ")
+                                        append(parseMarkdown(turn.text))
+                                    },
+                                    fontSize = 18.sp,
+                                    fontWeight = if (turn.speaker == AskNoraSpeaker.Assistant) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (turn.speaker == AskNoraSpeaker.Assistant) colorScheme.primary else colorScheme.onSurface,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        VoiceVisualizer(isActive = isActive, isSpeaking = isSpeaking)
+                    }
                 }
-            }
-        } else {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                VoiceVisualizer(isActive = isActive)
             }
         }
 
@@ -752,48 +1164,70 @@ fun VoiceCallView(
                 }
 
                 FloatingActionButton(
-                    onClick = if (isActive) onEnd else onStart,
+                    onClick = {
+                        if (!isStarting) {
+                            if (isActive) onEnd() else onStart()
+                        }
+                    },
                     containerColor = if (isActive) Color.Red else colorScheme.primary,
                     contentColor = Color.White,
                     modifier = Modifier.size(80.dp),
                     shape = CircleShape
                 ) {
-                    Icon(
-                        if (isActive) Icons.Default.CallEnd else Icons.Default.Call,
-                        contentDescription = if (isActive) "End Call" else "Start Call",
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = { onToggleTranscript(!showTranscript) },
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(colorScheme.surfaceVariant, CircleShape)
-                ) {
-                    Icon(
-                        if (showTranscript) Icons.Default.Image else Icons.Default.Description,
-                        contentDescription = "Toggle Transcript",
-                        modifier = Modifier.size(32.dp)
-                    )
+                    if (isStarting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = Color.White,
+                            strokeWidth = 3.dp
+                        )
+                    } else {
+                        Icon(
+                            if (isActive) Icons.Default.CallEnd else Icons.Default.Call,
+                            contentDescription = if (isActive) "End Call" else "Start Call",
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
 
             Text(
-                text = if (isActive) "Nora is listening..." else "Tap the phone to start",
+                text = when {
+                    isStarting -> "Connecting to Nora..."
+                    isActive -> if (isSpeaking) "Nora is speaking..." else "Nora is listening..."
+                    else -> "Tap the phone to start"
+                },
                 fontSize = 18.sp,
                 color = colorScheme.onSurfaceVariant
             )
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    fontSize = 14.sp,
+                    color = colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-fun VoiceVisualizer(isActive: Boolean) {
+fun VoiceVisualizer(isActive: Boolean, isSpeaking: Boolean = false) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_visualizer")
+    val targetScale = when {
+        isSpeaking -> 1.8f
+        isActive -> 1.35f
+        else -> 1f
+    }
+    val targetAlpha = when {
+        isSpeaking -> 0.18f
+        isActive -> 0.12f
+        else -> 0.45f
+    }
+
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (isActive) 1.5f else 1f,
+        targetValue = targetScale,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -802,7 +1236,7 @@ fun VoiceVisualizer(isActive: Boolean) {
     )
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
-        targetValue = if (isActive) 0.1f else 0.4f,
+        targetValue = targetAlpha,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -811,7 +1245,7 @@ fun VoiceVisualizer(isActive: Boolean) {
     )
 
     Box(contentAlignment = Alignment.Center) {
-        if (isActive) {
+        if (isActive || isSpeaking) {
             Box(
                 modifier = Modifier
                     .size(200.dp)
@@ -823,7 +1257,7 @@ fun VoiceVisualizer(isActive: Boolean) {
         Surface(
             modifier = Modifier.size(160.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = if (isSpeaking) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
             tonalElevation = 8.dp
         ) {
             Icon(
@@ -832,10 +1266,16 @@ fun VoiceVisualizer(isActive: Boolean) {
                 modifier = Modifier
                     .padding(40.dp)
                     .fillMaxSize(),
-                tint = MaterialTheme.colorScheme.primary
+                tint = if (isSpeaking) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
             )
         }
     }
+}
+
+private fun sanitizeTranscriptText(text: String): String {
+    val withoutToneTags = text.replace(Regex("\\s*\\[(warmly|patiently|empathetically|calmly|gently|warm|patient|empathetic)\\]\\s*", RegexOption.IGNORE_CASE), " ")
+    val compacted = withoutToneTags.replace(Regex("\\s+"), " ").trim()
+    return compacted
 }
 
 private fun titleFromMessage(message: String): String {
@@ -864,11 +1304,9 @@ data class AiFrameworkStep(
 fun AiSettingsPreferences() {
     var volume by remember { mutableStateOf(0.75f) }
     var selectedLanguage by remember { mutableStateOf("English") }
-    var selectedVoice by remember { mutableStateOf("Warm") }
     var simpleAnswers by remember { mutableStateOf(true) }
     var readAnswersAloud by remember { mutableStateOf(true) }
-    val languages = listOf("English", "Spanish", "Mandarin")
-    val voices = listOf("Warm", "Calm", "Bright")
+    val languages = listOf("English")
 
     SettingsValueRow("Text size", "Large")
     SettingsValueRow("Language", selectedLanguage)
@@ -887,25 +1325,13 @@ fun AiSettingsPreferences() {
 
     PreferenceControlCard(
         title = "Language options",
-        detail = "Choose the language Nora uses for AI answers.",
+        detail = "Default English voice is active for now.",
         icon = Icons.Filled.Translate
     ) {
         ChipColumn(
             options = languages,
             selected = selectedLanguage,
             onSelected = { selectedLanguage = it }
-        )
-    }
-
-    PreferenceControlCard(
-        title = "Voice options",
-        detail = "Choose the voice style for spoken answers.",
-        icon = Icons.Default.Mic
-    ) {
-        ChipColumn(
-            options = voices,
-            selected = selectedVoice,
-            onSelected = { selectedVoice = it }
         )
     }
 

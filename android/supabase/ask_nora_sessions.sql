@@ -6,6 +6,8 @@ create table if not exists public.ask_nora_sessions (
   patient_id uuid not null default auth.uid() references public.patient_profiles(id) on delete cascade,
   title text,
   initial_mode text not null check (initial_mode in ('text', 'voice')),
+  conversation_id text,
+  summary text,
   created_at timestamptz not null default now(),
   ended_at timestamptz
 );

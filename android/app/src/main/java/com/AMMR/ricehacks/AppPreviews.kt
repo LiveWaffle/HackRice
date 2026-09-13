@@ -39,6 +39,13 @@ private object PreviewHealthAiRepository : HealthAiRepository {
     ): HealthAiAnswer {
         return HealthAiAnswer("Bring your medicine list and ask about any side effects.")
     }
+
+    override suspend fun summarizeConversation(
+        patientSessionToken: String,
+        transcript: String
+    ): String {
+        return "Preview summary of the conversation."
+    }
 }
 
 private object PreviewPatientDataRepository : PatientDataRepository {

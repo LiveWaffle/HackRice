@@ -18,10 +18,6 @@ android {
     }
 
     defaultConfig {
-        val backendBaseUrl = localProperties.getProperty("BACKEND_BASE_URL")
-            ?: providers.gradleProperty("BACKEND_BASE_URL").getOrNull()
-            ?: providers.environmentVariable("BACKEND_BASE_URL").getOrNull()
-            ?: "http://10.0.2.2:5000"
         val presageApiKey = localProperties.getProperty("PRESAGE_API_KEY")
             ?: providers.gradleProperty("PRESAGE_API_KEY").getOrNull()
             ?: providers.environmentVariable("PRESAGE_API_KEY").getOrNull()
@@ -42,7 +38,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", "\"https://hgjreiiimbjbkqflmwte.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_GfzBoxNDFkAOIFmAxLDBdg_PhP4JX_Q\"")
-        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
         buildConfigField("String", "PRESAGE_API_KEY", "\"$presageApiKey\"")
         buildConfigField("String", "ELEVENLABS_AGENT_ID", "\"$elevenLabsAgentId\"")
     }

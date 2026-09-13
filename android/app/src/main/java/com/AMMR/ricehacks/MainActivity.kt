@@ -51,7 +51,10 @@ fun HealthBridgeApp(modifier: Modifier = Modifier) {
         )
     }
     val aiRepository = remember {
-        BackendHealthAiRepository(backendBaseUrl = BuildConfig.BACKEND_BASE_URL)
+        BackendHealthAiRepository(
+            supabaseUrl = BuildConfig.SUPABASE_URL,
+            publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+        )
     }
 
     RiceHacksTheme(darkTheme = darkTheme) {

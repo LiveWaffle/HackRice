@@ -16,7 +16,9 @@ data class AskNoraSession(
     val createdAt: String,
     val title: String,
     val lastMessage: String? = null,
-    val endedAt: String? = null
+    val endedAt: String? = null,
+    val conversationId: String? = null,
+    val summary: String? = null
 )
 
 data class AskNoraTurn(
@@ -25,6 +27,31 @@ data class AskNoraTurn(
     val createdAt: String? = null
 )
 
+data class IntakeDraft(
+    val sessionId: String? = null,
+    val intakeType: String,
+    val rawStatement: String,
+    val structured: Map<String, Any> = emptyMap(),
+    val confidence: String,
+    val needsReview: Boolean = true,
+    val source: String,
+    val patientId: String,
+    val timestamp: String,
+    val language: String,
+) {
+    fun toJsonObject(): JSONObject = JSONObject()
+        .put("session_id", sessionId)
+        .put("intake_type", intakeType)
+        .put("raw_statement", rawStatement)
+        .put("structured", JSONObject(structured))
+        .put("confidence", confidence)
+        .put("needs_review", needsReview)
+        .put("source", source)
+        .put("patient_id", patientId)
+        .put("timestamp", timestamp)
+        .put("language", language)
+}
+
 enum class AskNoraMode { Text, Voice }
 enum class AskNoraSpeaker { User, Assistant }
 
@@ -32,9 +59,12 @@ interface AskNoraRepository {
     suspend fun createSession(accessToken: String, initialMode: AskNoraMode): AskNoraSession
     suspend fun appendTurn(accessToken: String, sessionId: String, turn: AskNoraTurn)
     suspend fun updateSessionTitle(accessToken: String, sessionId: String, title: String)
+    suspend fun updateSessionConversationId(accessToken: String, sessionId: String, conversationId: String)
+    suspend fun updateSessionSummary(accessToken: String, sessionId: String, summary: String)
     suspend fun endSession(accessToken: String, sessionId: String)
     suspend fun fetchSessions(accessToken: String): List<AskNoraSession>
     suspend fun fetchTurns(accessToken: String, sessionId: String): List<AskNoraTurn>
+    suspend fun submitIntakeDraft(accessToken: String, sessionId: String, draft: IntakeDraft)
 }
 
 class SupabaseAskNoraRepository(
@@ -75,6 +105,26 @@ class SupabaseAskNoraRepository(
         )
     }
 
+    override suspend fun updateSessionConversationId(accessToken: String, sessionId: String, conversationId: String) {
+        request(
+            "/rest/v1/ask_nora_sessions?id=eq.$sessionId",
+            "PATCH",
+            accessToken,
+            JSONObject().put("conversation_id", conversationId),
+            returnRepresentation = false
+        )
+    }
+
+    override suspend fun updateSessionSummary(accessToken: String, sessionId: String, summary: String) {
+        request(
+            "/rest/v1/ask_nora_sessions?id=eq.$sessionId",
+            "PATCH",
+            accessToken,
+            JSONObject().put("summary", summary),
+            returnRepresentation = false
+        )
+    }
+
     override suspend fun endSession(accessToken: String, sessionId: String) {
         request("/rest/v1/ask_nora_sessions?id=eq.$sessionId", "PATCH", accessToken,
             JSONObject().put("ended_at", Instant.now().toString()), returnRepresentation = false)
@@ -94,7 +144,9 @@ class SupabaseAskNoraRepository(
                     if (mode == AskNoraMode.Voice) "Voice call" else "Text chat"
                 },
                 lastMessage = fetchLastTurn(accessToken, row.getString("id"))?.text,
-                endedAt = row.optString("ended_at").takeIf { it.isNotBlank() }
+                endedAt = row.optString("ended_at").takeIf { it.isNotBlank() },
+                conversationId = row.optString("conversation_id").takeIf { it.isNotBlank() },
+                summary = row.optString("summary").takeIf { it.isNotBlank() }
             )
         }
     }
@@ -110,6 +162,17 @@ class SupabaseAskNoraRepository(
                 createdAt = row.getString("created_at")
             )
         }
+    }
+
+    override suspend fun submitIntakeDraft(accessToken: String, sessionId: String, draft: IntakeDraft) {
+        val payload = draft.copy(sessionId = sessionId).toJsonObject()
+        request(
+            "/rest/v1/ask_nora_intake_drafts",
+            "POST",
+            accessToken,
+            payload,
+            returnRepresentation = false
+        )
     }
 
     private suspend fun fetchTurnCount(accessToken: String, sessionId: String): Int {
