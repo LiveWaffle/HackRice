@@ -1,6 +1,5 @@
 package com.AMMR.ricehacks
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,18 +49,15 @@ fun LoggedInHomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
-<<<<<<< Updated upstream
-    var showingMargaretRecord by remember { mutableStateOf(false) }
-=======
     var selectedVoiceLanguageCode by remember { mutableStateOf("en") }
->>>>>>> Stashed changes
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
-    PresageVitalsRepository(
-        supabaseUrl = BuildConfig.SUPABASE_URL,
-        publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-    )
-}
+        PresageVitalsRepository(
+            supabaseUrl = BuildConfig.SUPABASE_URL,
+            publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+        )
+    }
+    >>>>>>> main
     val scope = rememberCoroutineScope()
 
     Scaffold(
