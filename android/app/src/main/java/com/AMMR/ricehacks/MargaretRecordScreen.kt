@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +52,12 @@ private data class VitalPoint(
     val date: String,
     val value: Float
 )
+
+private enum class AddRecordType(val dialogTitle: String) {
+    Allergy("Add allergy"),
+    Condition("Add condition"),
+    Medication("Add medication")
+}
 
 private val margaretPulseHistory = listOf(
     VitalPoint("Sep 7", 72f),
@@ -134,6 +144,10 @@ private val margaretRecord = DemoPatientRecord(
 @Composable
 fun MargaretRecordScreen() {
     val record = margaretRecord
+    var allergies by remember { mutableStateOf(record.allergies) }
+    var conditions by remember { mutableStateOf(record.conditions) }
+    var medications by remember { mutableStateOf(record.medications) }
+    var addRecordType by remember { mutableStateOf<AddRecordType?>(null) }
 
     Column(
         modifier = Modifier
@@ -183,26 +197,44 @@ fun MargaretRecordScreen() {
 
         MargaretRecordSectionCard(
             title = "Allergies",
-            items = record.allergies,
-            emptyText = "No allergies are listed."
+            items = allergies,
+            emptyText = "No allergies are listed.",
+            onAddNew = { addRecordType = AddRecordType.Allergy }
         )
 
         MargaretRecordSectionCard(
             title = "Conditions",
-            items = record.conditions,
-            emptyText = "No conditions are listed."
+            items = conditions,
+            emptyText = "No conditions are listed.",
+            onAddNew = { addRecordType = AddRecordType.Condition }
         )
 
         MargaretRecordSectionCard(
             title = "Current medications",
-            items = record.medications,
-            emptyText = "No medications are listed."
+            items = medications,
+            emptyText = "No medications are listed.",
+            onAddNew = { addRecordType = AddRecordType.Medication }
         )
 
         MargaretRecordSectionCard(
             title = "Providers",
             items = record.providers,
             emptyText = "No providers are listed."
+        )
+    }
+
+    addRecordType?.let { type ->
+        AddRecordDialog(
+            type = type,
+            onDismiss = { addRecordType = null },
+            onAdd = { newItem ->
+                when (type) {
+                    AddRecordType.Allergy -> allergies = allergies + newItem
+                    AddRecordType.Condition -> conditions = conditions + newItem
+                    AddRecordType.Medication -> medications = medications + newItem
+                }
+                addRecordType = null
+            }
         )
     }
 }
@@ -431,10 +463,88 @@ private fun InteractiveVitalChart(
 }
 
 @Composable
+private fun AddRecordDialog(
+    type: AddRecordType,
+    onDismiss: () -> Unit,
+    onAdd: (HealthRecordItem) -> Unit
+) {
+    var name by remember(type) { mutableStateOf("") }
+    var detail by remember(type) { mutableStateOf("") }
+    var note by remember(type) { mutableStateOf("") }
+
+    val nameLabel = when (type) {
+        AddRecordType.Allergy -> "Allergen"
+        AddRecordType.Condition -> "Condition"
+        AddRecordType.Medication -> "Medication"
+    }
+
+    val detailLabel = when (type) {
+        AddRecordType.Allergy -> "Severity or reaction"
+        AddRecordType.Condition -> "Status"
+        AddRecordType.Medication -> "Dose and frequency"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(type.dialogTitle) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(nameLabel) },
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = detail,
+                    onValueChange = { detail = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(detailLabel) },
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Notes") }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = {
+                    onAdd(
+                        HealthRecordItem(
+                            title = name.trim(),
+                            detail = detail.trim().ifBlank { "No details provided" },
+                            note = note.trim().ifBlank { "Added by patient" }
+                        )
+                    )
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
 private fun MargaretRecordSectionCard(
     title: String,
     items: List<HealthRecordItem>,
-    emptyText: String
+    emptyText: String,
+    onAddNew: (() -> Unit)? = null
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -449,11 +559,23 @@ private fun MargaretRecordSectionCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = title,
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (onAddNew != null) {
+                    TextButton(onClick = onAddNew) {
+                        Text("+ Add new")
+                    }
+                }
+            }
 
             if (items.isEmpty()) {
                 Text(
