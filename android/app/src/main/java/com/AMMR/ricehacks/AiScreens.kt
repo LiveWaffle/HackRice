@@ -37,6 +37,10 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+<<<<<<< Updated upstream
+=======
+import androidx.compose.material.icons.filled.Chat
+>>>>>>> Stashed changes
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -44,6 +48,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -65,7 +70,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+<<<<<<< Updated upstream
 import androidx.compose.runtime.mutableFloatStateOf
+=======
+>>>>>>> Stashed changes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -190,6 +199,7 @@ fun NoraSessionList(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+<<<<<<< Updated upstream
             Card(
                 modifier = Modifier.weight(1f),
                 onClick = { onStartNew(AskNoraMode.Text) },
@@ -241,6 +251,37 @@ fun NoraSessionList(
 
         Text(
             text = "Conversations",
+=======
+            Button(
+                onClick = { onStartNew(AskNoraMode.Text) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Icon(Icons.Default.Chat, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("New Chat")
+            }
+            Button(
+                onClick = { onStartNew(AskNoraMode.Voice) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.secondary)
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Start Call")
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        Text(
+            text = "Past Conversations",
+>>>>>>> Stashed changes
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colorScheme.onBackground,
@@ -754,7 +795,7 @@ private fun formatDate(dateString: String): String {
 data class AiFrameworkStep(
     val title: String,
     val detail: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val icon: ImageVector,
 )
 
 @Composable
@@ -775,7 +816,7 @@ fun AiSettingsPreferences() {
         detail = "${(volume * 100).toInt()} percent",
         icon = Icons.Default.Call
     ) {
-        androidx.compose.material3.Slider(
+        Slider(
             value = volume,
             onValueChange = { volume = it },
             modifier = Modifier.fillMaxWidth()
@@ -822,7 +863,7 @@ fun AiSettingsPreferences() {
 private fun PreferenceControlCard(
     title: String,
     detail: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -877,7 +918,7 @@ private fun ChipColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         options.forEach { option ->
-            androidx.compose.material3.FilterChip(
+            FilterChip(
                 selected = selected == option,
                 onClick = { onSelected(option) },
                 modifier = Modifier.fillMaxWidth(),
@@ -914,7 +955,7 @@ private fun AiToggleRow(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
-        androidx.compose.material3.Switch(
+        Switch(
             checked = checked,
             onCheckedChange = onCheckedChange
         )

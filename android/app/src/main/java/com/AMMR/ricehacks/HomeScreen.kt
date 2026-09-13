@@ -55,11 +55,15 @@ fun HomeTabContent(
             fontWeight = FontWeight.Bold
         )
         Text(
+<<<<<<< Updated upstream
             text = if (role == UserRole.Doctor) {
                 "Manage your patient visits and scans."
             } else {
                 "Welcome back. We'll keep this simple and take one step at a time."
             },
+=======
+            text = if (role == UserRole.Doctor) "Manage your patient visits and scans." else "Welcome back. We'll keep this simple and take one step at a time.",
+>>>>>>> Stashed changes
             color = colorScheme.onSurfaceVariant,
             fontSize = 19.sp,
             lineHeight = 28.sp
@@ -104,7 +108,11 @@ fun HomeTabContent(
         }
 
         DashboardCard("Start a Presage scan") {
+<<<<<<< Updated upstream
             Text("Take a new scan to add today’s reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+=======
+            Text("Take a new scan to add today's reading to your health trends.", fontSize = 18.sp, lineHeight = 26.sp)
+>>>>>>> Stashed changes
             Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Start new scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -125,13 +133,14 @@ private fun HomeActionCard(
     buttonText: String,
     onClick: (() -> Unit)? = null
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
         shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold)
-            Text(message, fontSize = 17.sp, lineHeight = 25.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(message, fontSize = 17.sp, lineHeight = 25.sp, color = colorScheme.onSurfaceVariant)
             Button(
                 onClick = onClick ?: {},
                 modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -154,4 +163,7 @@ private fun DashboardCard(title: String, content: @Composable ColumnScope.() -> 
         }
     }
 }
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
