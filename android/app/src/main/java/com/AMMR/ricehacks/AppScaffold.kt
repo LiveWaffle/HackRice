@@ -45,6 +45,7 @@ fun LoggedInHomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(AppDestination.Home) }
     var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
+    var showingMargaretRecord by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
     val presageVitalsRepository = remember {
     PresageVitalsRepository(
@@ -104,6 +105,7 @@ fun LoggedInHomeScreen(
                     NavigationBarItem(
                         selected = selectedDestination == destination,
                         onClick = {
+                            showingMargaretRecord = false
                             selectedDestination = destination
                             if (destination != AppDestination.Settings) {
                                 selectedSettingsPage = null
@@ -134,10 +136,17 @@ fun LoggedInHomeScreen(
             color = colorScheme.background
         ) {
             when (selectedDestination) {
-                AppDestination.Home -> HomeTabContent(
-                    accessToken = patientSession.accessToken,
-                    presageVitalsRepository = presageVitalsRepository
-)
+                AppDestination.Home -> {
+                    if (showingMargaretRecord) {
+                        MargaretRecordScreen()
+                    } else {
+                        HomeTabContent(
+                            accessToken = patientSession.accessToken,
+                            presageVitalsRepository = presageVitalsRepository,
+                            onOpenRecord = { showingMargaretRecord = true }
+                        )
+                    }
+                }
                 AppDestination.Vitals -> PresageScanScreen(
                     onReadingReady = { reading ->
                         scope.launch {

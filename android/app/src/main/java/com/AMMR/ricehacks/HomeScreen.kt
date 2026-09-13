@@ -24,7 +24,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun HomeTabContent(
     accessToken: String,
-    presageVitalsRepository: PresageVitalsRepository
+    presageVitalsRepository: PresageVitalsRepository,
+    onOpenRecord: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -57,7 +58,8 @@ fun HomeTabContent(
         HomeActionCard(
             title = "My health record",
             message = "Medicines, allergies, conditions, and documents.",
-            buttonText = "Open record"
+            buttonText = "Open record",
+            onClick = onOpenRecord
         )
         HomeActionCard(
             title = "Share with a doctor",
@@ -76,7 +78,8 @@ fun HomeTabContent(
 private fun HomeActionCard(
     title: String,
     message: String,
-    buttonText: String
+    buttonText: String,
+    onClick: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -102,7 +105,7 @@ private fun HomeActionCard(
                 lineHeight = 27.sp
             )
             Button(
-                onClick = {},
+                onClick = onClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
